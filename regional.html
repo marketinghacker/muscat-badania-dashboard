@@ -26,8 +26,9 @@ h2 { font-family:'DM Serif Display',serif; font-size:20px; color:var(--gold); ma
 .sec { background:var(--navy-2); border:1px solid var(--gold-dim); border-radius:var(--radius); padding:20px; margin-bottom:var(--gap); }
 .ch-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(420px,1fr)); gap:var(--gap); }
 .ch-box { background:rgba(5,11,20,0.5); border:1px solid rgba(201,169,110,0.06); border-radius:10px; padding:16px; }
-.ch-box canvas { min-height:300px; }
+.ch-box canvas { min-height:280px; max-height:380px; }
 .ch-full { grid-column:1/-1; }
+.ch-box { max-height:450px; overflow:hidden; }
 .ch-title { font-size:12px; font-weight:600; color:var(--text-2); margin-bottom:8px; }
 .interp { font-size:11px; color:var(--text-2); margin-top:10px; padding:10px; background:rgba(201,169,110,0.04); border-left:2px solid var(--gold); border-radius:0 4px 4px 0; line-height:1.6; }
 .kpi-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; margin-bottom:20px; }
@@ -148,7 +149,8 @@ function makeChart(id, cfg) {
   if (charts[id]) charts[id].destroy();
   cfg.options = cfg.options || {};
   cfg.options.responsive = true;
-  cfg.options.maintainAspectRatio = false;
+  cfg.options.maintainAspectRatio = (cfg.type === 'doughnut' || cfg.type === 'pie');
+  if (cfg.type !== 'doughnut' && cfg.type !== 'pie') cfg.options.aspectRatio = 2.5;
   charts[id] = new Chart(ctx, cfg);
 }
 
