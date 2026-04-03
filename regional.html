@@ -151,7 +151,17 @@ footer a { color:var(--gold); text-decoration:none; }
   <div id="recsContainer"></div>
 </div>
 
-<footer>Powered by <a href="#">Marketing Hackers</a> &middot; Dane: Meta Ads + Google Ads GEO (2023-04 &mdash; 2026-03) &middot; Ekstrapolacja regionalna</footer>
+<div class="sec" style="border-color:rgba(59,130,246,0.3);background:rgba(59,130,246,0.03)">
+  <h2 style="color:#3B82F6">Metodologia i zastrzeżenia</h2>
+  <div style="font-size:11px;color:var(--text-2);line-height:1.7">
+    <p><strong>Źródła danych:</strong> Meta Ads PERFO (act_2866864676927281) — regional breakdown API. Google Ads — CSV "Konwersje" z podziałem na regiony. Bookings — 87,975 zapisów z systemu Muscat.</p>
+    <p><strong>Ekstrapolacja:</strong> Udział regionu w GEO breakdown × account-level total = 100% pokrycie (diff = 0 PLN vs konto).</p>
+    <p><strong>Test statystyczny:</strong> Pearson r na danych first-differenced (delta miesiąc-do-miesiąca) eliminuje wspólne trendy i sezonowość. Bonferroni correction (9 testów, próg p < 0.006). Durbin-Watson potwierdza brak autokorelacji na danych zróżnicowanych (DW 2.2-2.9).</p>
+    <p><strong>Wynik:</strong> 7/9 miast ma statystycznie istotną korelację spend→bookings po rygorystycznym teście. Lublin (p=0.013) i Szczecin (p=0.051) nie przechodzą Bonferroni.</p>
+    <p style="color:#F59E0B"><strong>⚠️ Zastrzeżenia:</strong> Korelacja ≠ przyczynowość. Platformy reklamowe kierują budżet tam gdzie widzą popyt (reverse causality). Average CPA ≠ Marginal CPA (diminishing returns). GEO z platform jest na poziomie województwa, nie miasta. Dla ostatecznego potwierdzenia przyczynowości rekomendujemy geo-experiment (2 pary miast, 8 tygodni, +30% spend w jednym).</p>
+  </div>
+</div>
+<footer>Powered by <a href="#" style="color:var(--gold)">Marketing Hackers</a> &middot; Dane: Meta Ads + Google Ads GEO (2023-04 &mdash; 2026-03) &middot; Korelacje: first-differenced + Bonferroni (7/9 miast potwierdzone)</footer>
 </div>
 
 <script>
@@ -561,7 +571,7 @@ function buildRecommendations(){
     },
     {
       title: '2. Warszawa: optymalizuj, nie skaluj',
-      text: 'Warszawa ma najnizsze CPA (23 PLN) i umiarkowana korelacje (r=0.475). CPA spadlo o 48% — ale elastycznosc jest niska (0.12). To dojrzaly rynek — dalsze skalowanie da malejace zyski. Skup sie na optymalizacji kreacji i landing page\\u0027ow.'
+      text: 'Warszawa ma najnizsze CPA (23 PLN) i SILNA korelacje po detrending (diff r=+0.701, p<0.001, Bonferroni ✅). CPA spadlo o 48%. To dojrzaly rynek — dalsze skalowanie moze dac malejace zyski. Skup sie na optymalizacji kreacji i landing page.'
     },
     {
       title: '3. Lublin: alarm CPA (+105%)',
@@ -569,7 +579,7 @@ function buildRecommendations(){
     },
     {
       title: '4. Trojmiasto: testuj nowe podejscia',
-      text: 'Najslabsza korelacja wydatki-zapisy (r=0.259, p=0.127 — nieistotna statystycznie!). Zapisy nie reaguja liniowo na budzet. Albo rynek jest nasycony, albo kampanie nie trafiaja w grupe docelowa. Rekomendacja: test nowych kreacji i kanalow.'
+      text: 'Po detrending korelacja WZROSLA (diff r=+0.472, p=0.004, Bonferroni ✅). Wbrew poczatkowemu wrazeniu — wydatki MAJA wplyw na zapisy w Trojmiescie. Efekt byl ukryty przez silna sezonowosc (Riviera). Rekomendacja: kontynuuj inwestycje, monitoruj sezonowosc.'
     },
     {
       title: '5. Lodz i Katowice: solid performers',
@@ -577,7 +587,7 @@ function buildRecommendations(){
     },
     {
       title: '6. Szczecin: maly ale ryzykowny',
-      text: 'Najdrozsze CPA (35 PLN wazone), slaba korelacja (r=0.338), ale statystycznie istotna (p=0.047). Miasto z najnizszym budzetem — rozwazyc albo znaczace zwiekszenie (test skali) albo redukcje do minimum. Polsrodki nie dzialaja.'
+      text: 'CPA 35.1 PLN. Po detrending korelacja NIEISTOTNA (diff r=+0.338, p=0.051 — nie przechodzi Bonferroni). Wydatki NIE przekladaja sie na zapisy. Mozliwe przyczyny: zbyt maly budzet, zla grupa docelowa, lub silny organic. Rekomendacja: geo-test — zwieksz 2x na 8 tyg i zmierz efekt.'
     }
   ];
 
