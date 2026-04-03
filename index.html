@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Muscat — Analiza Badań Wzroku</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0" crossorigin="anonymous"></script>
+<style>
+:root {
+  --bg: #0f172a; --bg2: #1e293b; --bg3: #334155;
+  --text: #f1f5f9; --text2: #94a3b8; --text3: #64748b;
+  --cyan: #06b6d4; --violet: #8b5cf6; --amber: #f59e0b;
+  --red: #ef4444; --emerald: #10b981; --blue: #3b82f6;
+  --pink: #ec4899; --orange: #f97316;
+  --glow-cyan: 0 0 20px rgba(6,182,212,0.3);
+  --glow-violet: 0 0 20px rgba(139,92,246,0.3);
+  --radius: 12px; --gap: 16px;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; }
+.container { max-width: 1440px; margin: 0 auto; padding: var(--gap); }
+
+/* Header */
+.header { background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border: 1px solid rgba(6,182,212,0.2); border-radius: var(--radius); padding: 24px; margin-bottom: var(--gap); position: relative; overflow: hidden; }
+.header::before { content: ''; position: absolute; top: -50%; right: -20%; width: 400px; height: 400px; background: radial-gradient(circle, rgba(6,182,212,0.08) 0%, transparent 70%); }
+.header h1 { font-size: 28px; font-weight: 800; background: linear-gradient(135deg, var(--cyan), var(--violet)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 4px; position: relative; }
+.header .subtitle { color: var(--text2); font-size: 13px; position: relative; }
+.header .live { display: inline-flex; align-items: center; gap: 6px; color: var(--emerald); font-size: 12px; position: relative; }
+.header .live::before { content: ''; width: 8px; height: 8px; background: var(--emerald); border-radius: 50%; animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+/* Filters */
+.filters { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; position: relative; }
+.filter-group { display: flex; flex-direction: column; gap: 3px; }
+.filter-group label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--text3); }
+.filter-group select { padding: 6px 12px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: var(--text); font-size: 13px; cursor: pointer; transition: all 0.2s; }
+.filter-group select:hover { border-color: var(--cyan); }
+.filter-group select:focus { outline: none; border-color: var(--cyan); box-shadow: 0 0 0 2px rgba(6,182,212,0.2); }
+select option { background: var(--bg2); }
+
+/* KPI Cards */
+.kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--gap); margin-bottom: var(--gap); }
+.kpi-card { background: var(--bg2); border: 1px solid rgba(255,255,255,0.06); border-radius: var(--radius); padding: 20px; transition: all 0.3s; position: relative; overflow: hidden; }
+.kpi-card:hover { transform: translateY(-2px); border-color: rgba(6,182,212,0.3); box-shadow: var(--glow-cyan); }
+.kpi-card::after { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, var(--cyan), var(--violet)); opacity: 0; transition: opacity 0.3s; }
+.kpi-card:hover::after { opacity: 1; }
+.kpi-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--text3); margin-bottom: 6px; }
+.kpi-value { font-size: 36px; font-weight: 800; line-height: 1; margin-bottom: 4px; }
+.kpi-value.glow { text-shadow: var(--glow-cyan); }
+.kpi-change { font-size: 12px; font-weight: 600; }
+.kpi-change.up { color: var(--emerald); }
+.kpi-change.down { color: var(--red); }
+
+/* Sections */
+.section { margin-bottom: var(--gap); animation: fadeIn 0.6s ease-out; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+.section-title { font-size: 18px; font-weight: 700; margin-bottom: var(--gap); padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.06); display: flex; align-items: center; gap: 8px; }
+.section-title .icon { font-size: 20px; }
+
+/* Chart containers */
+.chart-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: var(--gap); margin-bottom: var(--gap); }
+.chart-box { background: var(--bg2); border: 1px solid rgba(255,255,255,0.06); border-radius: var(--radius); padding: 20px; transition: all 0.3s; }
+.chart-box:hover { border-color: rgba(139,92,246,0.2); }
+.chart-box h3 { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+.chart-box .insight { font-size: 11px; color: var(--text3); margin-bottom: 12px; font-style: italic; }
+.chart-box canvas { max-height: 320px; }
+.chart-box.full { grid-column: 1 / -1; }
+.chart-box.tall canvas { max-height: 450px; }
+
+/* Heatmap (CSS grid based) */
+.heatmap { display: grid; gap: 2px; }
+.heatmap-cell { border-radius: 3px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; color: rgba(255,255,255,0.8); min-height: 28px; transition: all 0.2s; cursor: default; }
+.heatmap-cell:hover { transform: scale(1.1); z-index: 1; }
+.heatmap-label { font-size: 11px; color: var(--text3); display: flex; align-items: center; justify-content: center; }
+
+/* Big number callout */
+.big-number { text-align: center; padding: 20px; }
+.big-number .value { font-size: 56px; font-weight: 900; background: linear-gradient(135deg, var(--cyan), var(--violet)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; line-height: 1; }
+.big-number .label { font-size: 14px; color: var(--text2); margin-top: 4px; }
+
+/* Table */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+th { text-align: left; padding: 8px 10px; border-bottom: 2px solid var(--bg3); color: var(--text3); font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; cursor: pointer; white-space: nowrap; user-select: none; position: sticky; top: 0; background: var(--bg2); }
+th:hover { color: var(--cyan); }
+td { padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,0.04); white-space: nowrap; }
+tr:hover td { background: rgba(6,182,212,0.05); }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; }
+.badge.up { background: rgba(16,185,129,0.15); color: var(--emerald); }
+.badge.down { background: rgba(239,68,68,0.15); color: var(--red); }
+.pagination { display: flex; gap: 8px; margin-top: 12px; justify-content: center; }
+.pagination button { padding: 4px 12px; background: var(--bg3); border: none; border-radius: 4px; color: var(--text); cursor: pointer; font-size: 12px; }
+.pagination button.active { background: var(--cyan); color: var(--bg); }
+
+/* Note */
+.note { background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.2); border-radius: 8px; padding: 12px 16px; font-size: 12px; color: var(--amber); margin-bottom: var(--gap); }
+
+/* Footer */
+.footer { text-align: center; padding: 24px; color: var(--text3); font-size: 12px; border-top: 1px solid rgba(255,255,255,0.06); margin-top: 32px; }
+
+/* Responsive */
+@media (max-width: 768px) {
+  .chart-row { grid-template-columns: 1fr; }
+  .kpi-row { grid-template-columns: repeat(2, 1fr); }
+  .kpi-value { font-size: 28px; }
+  .filters { flex-direction: column; }
+}
+@media print {
+  body { background: #fff; color: #000; }
+  .kpi-card, .chart-box { border: 1px solid #ddd; box-shadow: none; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+<!-- HEADER -->
+<div class="header">
+  <h1>Muscat — Analiza Badan Wzroku</h1>
+  <div class="subtitle">
+    <span class="live">Dane: <span id="meta-range"></span></span>
+    &nbsp;&middot;&nbsp; <span id="meta-total"></span> zapisow &nbsp;&middot;&nbsp; Wygenerowano: <span id="meta-gen"></span>
+  </div>
+  <div class="filters" id="filters">
+    <div class="filter-group">
+      <label>Okres</label>
+      <select id="f-period" onchange="applyFilters()">
+        <option value="all">Caly zakres</option>
+        <option value="6m">Ostatnie 6 mcy</option>
+        <option value="3m">Ostatnie 3 mcy</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <label>Region</label>
+      <select id="f-city" onchange="applyFilters()">
+        <option value="all">Wszystkie</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <label>Salon</label>
+      <select id="f-salon" onchange="applyFilters()">
+        <option value="all">Wszystkie</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <label>Zrodlo</label>
+      <select id="f-source" onchange="applyFilters()">
+        <option value="all">Wszystkie</option>
+        <option value="website">Website</option>
+        <option value="showroom">Showroom</option>
+        <option value="helpline">Helpline</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <label>Status</label>
+      <select id="f-status" onchange="applyFilters()">
+        <option value="all">Wszystkie</option>
+        <option value="done">Zrealizowane</option>
+        <option value="canceled">Anulowane</option>
+        <option value="absent">Nieobecni</option>
+      </select>
+    </div>
+  </div>
+</div>
+
+<div class="note" id="data-note"></div>
+
+<!-- KPI CARDS -->
+<div class="kpi-row" id="kpi-row"></div>
+
+<!-- SECTION 1: Main Trends -->
+<div class="section">
+  <div class="section-title">Trendy Glowne</div>
+  <div class="chart-row">
+    <div class="chart-box"><h3>Wolumen miesięczny</h3><p class="insight">Linie total + website-only (porownywalne od I.2025). Pionowe linie = otwarcie nowego salonu.</p><canvas id="ch-monthly-vol"></canvas></div>
+    <div class="chart-box"><h3>Struktura statusow</h3><p class="insight">Udział done / canceled / absent w każdym miesiącu</p><canvas id="ch-status-stack"></canvas></div>
+  </div>
+  <div class="chart-row">
+    <div class="chart-box"><h3>Mix zrodel (od III.2025)</h3><p class="insight">Udzial website / showroom / helpline. Dane Jan-Feb 2025 = tylko website.</p><canvas id="ch-source-mix"></canvas></div>
+    <div class="chart-box"><h3>Realizacja vs Anulacja — trend</h3><p class="insight">% done i % canceled miesiecznie</p><canvas id="ch-done-cancel-trend"></canvas></div>
+  </div>
+</div>
+
+<!-- SECTION 2: Cities/Regions -->
+<div class="section">
+  <div class="section-title">Analiza per Region</div>
+  <div class="chart-row">
+    <div class="chart-box full"><h3>Wolumen miesięczny per region</h3><p class="insight">Porownanie regionow: Warszawa, Krakow, Trojmiasto, Wroclaw + samodzielne miasta</p><canvas id="ch-city-monthly"></canvas></div>
+  </div>
+  <div class="chart-row">
+    <div class="chart-box"><h3>Zmiana netto per region (ost. 3 mcy vs poprz. 3 mcy)</h3><p class="insight">Zielony = wzrost, czerwony = spadek</p><canvas id="ch-city-change"></canvas></div>
+    <div class="chart-box"><h3>Wplyw nowego salonu na region</h3><p class="insight">Wolumen regionu PRZED i PO otwarciu nowego salonu. Niebieskie = istniejace salony, fioletowe = nowy salon.</p><canvas id="ch-new-salon-impact"></canvas></div>
+  </div>
+</div>
+
+<!-- SECTION 3: Mall vs Street -->
+<div class="section">
+  <div class="section-title">Galeria vs Ulica</div>
+  <div class="chart-row">
+    <div class="chart-box"><h3>Trend: galerie vs ulica</h3><p class="insight">Miesięczny wolumen galerie handlowe vs salony uliczne/standalone</p><canvas id="ch-type-trend"></canvas></div>
+    <div class="chart-box"><h3>Jakość: galeria vs ulica</h3><p class="insight">Porownanie: realizacja%, anulacja%, absencja%</p><canvas id="ch-type-quality"></canvas></div>
+  </div>
+</div>
+
+<!-- SECTION 4: Sources -->
+<div class="section">
+  <div class="section-title">Analiza Zrodel</div>
+  <div class="chart-row">
+    <div class="chart-box"><h3>Heatmap: godzina x zrodlo</h3><p class="insight">Kiedy w ciagu dnia dominuje website vs showroom vs helpline?</p><div id="heatmap-source-hour"></div></div>
+    <div class="chart-box tall"><h3>Zrodla per salon</h3><p class="insight">Udzial website / showroom / helpline per salon (od III.2025)</p><canvas id="ch-source-salon"></canvas></div>
+  </div>
+</div>
+
+<!-- SECTION 5: Lead Time -->
+<div class="section">
+  <div class="section-title">Lead Time (czas od zapisu do badania)</div>
+  <div class="chart-row">
+    <div class="chart-box"><h3>Rozklad lead time per zrodlo</h3><p class="insight">Ile dni od zapisu do badania? Website vs Showroom vs Helpline</p><canvas id="ch-lead-dist"></canvas></div>
+    <div class="chart-box"><h3>Lead time per salon</h3><p class="insight">Mediana dni od zapisu do badania per salon</p><canvas id="ch-lead-salon"></canvas></div>
+  </div>
+  <div class="chart-row">
+    <div class="chart-box full"><h3>Trend lead time</h3><p class="insight">Jak zmienia sie czas oczekiwania miesiac po miesiacu?</p><canvas id="ch-lead-trend"></canvas></div>
+  </div>
+</div>
+
+<!-- SECTION 6: Cancellations -->
+<div class="section">
+  <div class="section-title">Analiza Anulacji</div>
+  <div class="chart-row">
+    <div class="chart-box"><h3>Wskaznik anulacji per salon</h3><p class="insight">% anulacji per salon vs srednia (linia)</p><canvas id="ch-cancel-salon"></canvas></div>
+    <div class="chart-box"><h3>Metoda anulacji</h3><p class="insight">Jakim kanalem klienci anuluja zapisy?</p><canvas id="ch-cancel-method"></canvas></div>
+  </div>
+  <div class="chart-row">
+    <div class="chart-box full"><h3>Czas do anulacji (ile godzin przed badaniem)</h3><p class="insight">Czy anulacje sa last-minute czy z wyprzedzeniem?</p><canvas id="ch-cancel-advance"></canvas></div>
+  </div>
+</div>
+
+<!-- SECTION 7: Time Patterns -->
+<div class="section">
+  <div class="section-title">Wzorce Czasowe</div>
+  <div class="chart-row">
+    <div class="chart-box full"><h3>Heatmap: dzien tygodnia x godzina</h3><p class="insight">Kiedy ludzie najczesciej sie zapisuja na badanie wzroku?</p><div id="heatmap-dow-hour"></div></div>
+  </div>
+</div>
+
+<!-- SECTION 8: Returning Clients -->
+<div class="section">
+  <div class="section-title">Klienci Powracajacy</div>
+  <div class="chart-row">
+    <div class="chart-box"><h3>Rozklad wizyt per klient</h3><p class="insight">Ile klientow mialo 1, 2, 3+ wizyty (zrealizowane)</p><canvas id="ch-visit-dist"></canvas></div>
+    <div class="chart-box"><h3>Odstep miedzy wizytami</h3><p class="insight">Co ile dni klienci wracaja na badanie?</p><canvas id="ch-visit-interval"></canvas></div>
+  </div>
+</div>
+
+<!-- SECTION 9: Cancellation Chain -->
+<div class="section">
+  <div class="section-title">Cancellation Chain — co po anulacji?</div>
+  <div class="kpi-row" id="cancel-chain-kpis"></div>
+  <div class="chart-row">
+    <div class="chart-box"><h3>Czas do ponownego zapisu po anulacji</h3><p class="insight">Ile dni mija od anulacji do kolejnego zapisu?</p><canvas id="ch-rebook-gap"></canvas></div>
+    <div class="chart-box"><h3>Re-booking rate per salon</h3><p class="insight">% anulacji ktore konczy sie ponownym zapisem</p><canvas id="ch-rebook-salon"></canvas></div>
+  </div>
+</div>
+
+<!-- SECTION 10: Forecast -->
+<div class="section">
+  <div class="section-title">Prognoza (3 miesiace)</div>
+  <div class="chart-row">
+    <div class="chart-box full tall"><h3>Prognoza wolumenu per region</h3><p class="insight">Linia ciagla = dane historyczne, przerywana = prognoza. Metoda: regresja liniowa + korekta sezonowa.</p><canvas id="ch-forecast"></canvas></div>
+  </div>
+</div>
+
+<!-- SECTION 11: Detail Table -->
+<div class="section">
+  <div class="section-title">Tabela Szczegolowa</div>
+  <div class="chart-box full">
+    <div class="table-wrap" id="detail-table-wrap"></div>
+    <div class="pagination" id="table-pagination"></div>
+  </div>
+</div>
+
+<div class="footer">
+  Muscat Eye Exam Analysis Dashboard &middot; Wygenerowano automatycznie &middot; Dane: system zapisow Muscat
+</div>
+
+</div>
+
+<script>
+// === DATA ===
+const D = {"months": ["2025-01", "2025-02", "2025-03", "2025-04", "2025-05", "2025-06", "2025-07", "2025-08", "2025-09", "2025-10", "2025-11", "2025-12", "2026-01", "2026-02", "2026-03"], "kpi": {"total": 32555, "done": 21643, "done_pct": 66.5, "canceled": 9138, "canceled_pct": 28.1, "absent": 1412, "absent_pct": 4.3, "unique_clients": 24113, "avg_lead_days": 1.2}, "monthly": [{"month": "2025-01", "total": 1426, "done": 873, "canceled": 424, "absent": 52, "planned": 77, "website": 1426, "showroom": 0, "helpline": 0, "website_done": 873, "website_only": 1426}, {"month": "2025-02", "total": 1255, "done": 721, "canceled": 376, "absent": 47, "planned": 112, "website": 1256, "showroom": 0, "helpline": 0, "website_done": 721, "website_only": 1256}, {"month": "2025-03", "total": 2337, "done": 1612, "canceled": 632, "absent": 93, "planned": 12, "website": 1287, "showroom": 910, "helpline": 152, "website_done": 802, "website_only": 1287}, {"month": "2025-04", "total": 1990, "done": 1344, "canceled": 560, "absent": 90, "planned": 5, "website": 1006, "showroom": 837, "helpline": 156, "website_done": 610, "website_only": 1006}, {"month": "2025-05", "total": 1993, "done": 1355, "canceled": 559, "absent": 82, "planned": 6, "website": 1032, "showroom": 816, "helpline": 154, "website_done": 640, "website_only": 1032}, {"month": "2025-06", "total": 1874, "done": 1280, "canceled": 520, "absent": 83, "planned": 11, "website": 998, "showroom": 774, "helpline": 122, "website_done": 612, "website_only": 998}, {"month": "2025-07", "total": 2076, "done": 1407, "canceled": 592, "absent": 77, "planned": 2, "website": 1117, "showroom": 828, "helpline": 133, "website_done": 690, "website_only": 1117}, {"month": "2025-08", "total": 2312, "done": 1605, "canceled": 613, "absent": 98, "planned": 4, "website": 1181, "showroom": 981, "helpline": 158, "website_done": 757, "website_only": 1181}, {"month": "2025-09", "total": 1738, "done": 1223, "canceled": 438, "absent": 77, "planned": 7, "website": 866, "showroom": 752, "helpline": 127, "website_done": 542, "website_only": 866}, {"month": "2025-10", "total": 2522, "done": 1679, "canceled": 717, "absent": 119, "planned": 18, "website": 1387, "showroom": 947, "helpline": 199, "website_done": 846, "website_only": 1387}, {"month": "2025-11", "total": 3408, "done": 2260, "canceled": 993, "absent": 164, "planned": 8, "website": 1987, "showroom": 1240, "helpline": 198, "website_done": 1183, "website_only": 1987}, {"month": "2025-12", "total": 1975, "done": 1285, "canceled": 601, "absent": 94, "planned": 5, "website": 1013, "showroom": 834, "helpline": 138, "website_done": 586, "website_only": 1013}, {"month": "2026-01", "total": 2388, "done": 1578, "canceled": 711, "absent": 99, "planned": 4, "website": 1295, "showroom": 902, "helpline": 195, "website_done": 789, "website_only": 1295}, {"month": "2026-02", "total": 2461, "done": 1646, "canceled": 699, "absent": 125, "planned": 3, "website": 1303, "showroom": 951, "helpline": 219, "website_done": 796, "website_only": 1303}, {"month": "2026-03", "total": 2665, "done": 1775, "canceled": 703, "absent": 112, "planned": 88, "website": 1297, "showroom": 1117, "helpline": 264, "website_done": 793, "website_only": 1297}], "monthly_by_city": {"months": ["2025-01", "2025-02", "2025-03", "2025-04", "2025-05", "2025-06", "2025-07", "2025-08", "2025-09", "2025-10", "2025-11", "2025-12", "2026-01", "2026-02", "2026-03"], "cities": {"Katowice": [101, 93, 170, 187, 151, 133, 192, 212, 136, 193, 315, 135, 210, 184, 249], "Kraków": [146, 151, 265, 206, 243, 176, 192, 238, 167, 260, 325, 152, 192, 224, 206], "Lublin": [33, 26, 67, 45, 41, 17, 0, 0, 0, 40, 70, 0, 0, 25, 79], "Poznań": [165, 107, 222, 202, 193, 178, 170, 204, 162, 249, 378, 208, 261, 271, 222], "Praga": [115, 100, 68, 57, 50, 51, 33, 0, 52, 50, 65, 0, 0, 0, 0], "Szczecin": [20, 37, 73, 40, 49, 47, 44, 70, 43, 51, 75, 43, 66, 57, 42], "Trójmiasto": [147, 138, 214, 167, 157, 253, 299, 323, 224, 340, 394, 236, 287, 246, 275], "Warszawa": [476, 410, 921, 771, 814, 754, 828, 922, 698, 924, 1270, 876, 990, 999, 1121], "Wrocław": [175, 144, 215, 225, 205, 180, 216, 241, 139, 274, 351, 231, 258, 333, 336], "Łódź": [48, 50, 134, 99, 99, 105, 104, 110, 124, 152, 182, 104, 128, 134, 148]}}, "salon_monthly": [{"month": "2025-01", "pos": "Gdańsk", "total": 147, "done": 91, "canceled": 44, "absent": 5}, {"month": "2025-01", "pos": "Katowice", "total": 101, "done": 62, "canceled": 28, "absent": 3}, {"month": "2025-01", "pos": "Kraków Pawia", "total": 66, "done": 40, "canceled": 18, "absent": 1}, {"month": "2025-01", "pos": "Kraków Starowiślna", "total": 80, "done": 54, "canceled": 21, "absent": 4}, {"month": "2025-01", "pos": "Lublin", "total": 33, "done": 16, "canceled": 9, "absent": 2}, {"month": "2025-01", "pos": "Poznań", "total": 165, "done": 108, "canceled": 49, "absent": 1}, {"month": "2025-01", "pos": "Praga", "total": 115, "done": 73, "canceled": 28, "absent": 6}, {"month": "2025-01", "pos": "Szczecin", "total": 20, "done": 10, "canceled": 6, "absent": 1}, {"month": "2025-01", "pos": "Warszawa Arkadia", "total": 213, "done": 137, "canceled": 59, "absent": 12}, {"month": "2025-01", "pos": "Warszawa Chmielna", "total": 184, "done": 105, "canceled": 68, "absent": 4}, {"month": "2025-01", "pos": "Warszawa Wola Park", "total": 79, "done": 50, "canceled": 20, "absent": 2}, {"month": "2025-01", "pos": "Wrocław Stawowa", "total": 175, "done": 101, "canceled": 56, "absent": 10}, {"month": "2025-01", "pos": "Łódź", "total": 48, "done": 26, "canceled": 18, "absent": 1}, {"month": "2025-02", "pos": "Gdańsk", "total": 138, "done": 74, "canceled": 46, "absent": 5}, {"month": "2025-02", "pos": "Katowice", "total": 93, "done": 52, "canceled": 29, "absent": 2}, {"month": "2025-02", "pos": "Kraków Pawia", "total": 80, "done": 43, "canceled": 28, "absent": 1}, {"month": "2025-02", "pos": "Kraków Starowiślna", "total": 71, "done": 49, "canceled": 15, "absent": 1}, {"month": "2025-02", "pos": "Lublin", "total": 26, "done": 15, "canceled": 6, "absent": 1}, {"month": "2025-02", "pos": "Poznań", "total": 107, "done": 64, "canceled": 28, "absent": 5}, {"month": "2025-02", "pos": "Praga", "total": 100, "done": 61, "canceled": 27, "absent": 8}, {"month": "2025-02", "pos": "Szczecin", "total": 37, "done": 16, "canceled": 17, "absent": 0}, {"month": "2025-02", "pos": "Warszawa Arkadia", "total": 182, "done": 95, "canceled": 66, "absent": 10}, {"month": "2025-02", "pos": "Warszawa Chmielna", "total": 173, "done": 99, "canceled": 53, "absent": 7}, {"month": "2025-02", "pos": "Warszawa Wola Park", "total": 54, "done": 32, "canceled": 13, "absent": 2}, {"month": "2025-02", "pos": "Wrocław Stawowa", "total": 144, "done": 87, "canceled": 39, "absent": 5}, {"month": "2025-02", "pos": "Łódź", "total": 50, "done": 34, "canceled": 9, "absent": 0}, {"month": "2025-03", "pos": "Gdańsk", "total": 213, "done": 142, "canceled": 62, "absent": 10}, {"month": "2025-03", "pos": "Katowice", "total": 170, "done": 120, "canceled": 47, "absent": 3}, {"month": "2025-03", "pos": "Kraków Pawia", "total": 125, "done": 91, "canceled": 27, "absent": 1}, {"month": "2025-03", "pos": "Kraków Starowiślna", "total": 139, "done": 108, "canceled": 29, "absent": 3}, {"month": "2025-03", "pos": "Lublin", "total": 67, "done": 46, "canceled": 20, "absent": 1}, {"month": "2025-03", "pos": "Poznań", "total": 222, "done": 160, "canceled": 51, "absent": 11}, {"month": "2025-03", "pos": "Praga", "total": 68, "done": 36, "canceled": 31, "absent": 1}, {"month": "2025-03", "pos": "Szczecin", "total": 72, "done": 44, "canceled": 25, "absent": 4}, {"month": "2025-03", "pos": "Warszawa Arkadia", "total": 299, "done": 205, "canceled": 79, "absent": 17}, {"month": "2025-03", "pos": "Warszawa Chmielna", "total": 345, "done": 235, "canceled": 99, "absent": 15}, {"month": "2025-03", "pos": "Warszawa Targowa", "total": 135, "done": 91, "canceled": 37, "absent": 8}, {"month": "2025-03", "pos": "Warszawa Wola Park", "total": 133, "done": 83, "canceled": 43, "absent": 3}, {"month": "2025-03", "pos": "Wrocław Stawowa", "total": 215, "done": 156, "canceled": 43, "absent": 16}, {"month": "2025-03", "pos": "Łódź", "total": 134, "done": 95, "canceled": 39, "absent": 0}, {"month": "2025-04", "pos": "Gdańsk", "total": 167, "done": 113, "canceled": 44, "absent": 10}, {"month": "2025-04", "pos": "Katowice", "total": 185, "done": 122, "canceled": 55, "absent": 10}, {"month": "2025-04", "pos": "Kraków Pawia", "total": 96, "done": 67, "canceled": 28, "absent": 0}, {"month": "2025-04", "pos": "Kraków Starowiślna", "total": 109, "done": 72, "canceled": 31, "absent": 6}, {"month": "2025-04", "pos": "Lublin", "total": 45, "done": 27, "canceled": 15, "absent": 1}, {"month": "2025-04", "pos": "Poznań", "total": 202, "done": 143, "canceled": 44, "absent": 15}, {"month": "2025-04", "pos": "Praga", "total": 54, "done": 40, "canceled": 13, "absent": 4}, {"month": "2025-04", "pos": "Szczecin", "total": 40, "done": 25, "canceled": 13, "absent": 2}, {"month": "2025-04", "pos": "Warszawa Arkadia", "total": 262, "done": 185, "canceled": 65, "absent": 12}, {"month": "2025-04", "pos": "Warszawa Chmielna", "total": 312, "done": 200, "canceled": 108, "absent": 6}, {"month": "2025-04", "pos": "Warszawa Targowa", "total": 95, "done": 69, "canceled": 21, "absent": 5}, {"month": "2025-04", "pos": "Warszawa Wola Park", "total": 99, "done": 72, "canceled": 25, "absent": 2}, {"month": "2025-04", "pos": "Wrocław Stawowa", "total": 225, "done": 141, "canceled": 70, "absent": 14}, {"month": "2025-04", "pos": "Łódź", "total": 99, "done": 68, "canceled": 28, "absent": 3}, {"month": "2025-05", "pos": "Gdańsk", "total": 157, "done": 104, "canceled": 45, "absent": 8}, {"month": "2025-05", "pos": "Katowice", "total": 151, "done": 104, "canceled": 38, "absent": 9}, {"month": "2025-05", "pos": "Kraków Pawia", "total": 119, "done": 78, "canceled": 40, "absent": 0}, {"month": "2025-05", "pos": "Kraków Starowiślna", "total": 123, "done": 86, "canceled": 34, "absent": 4}, {"month": "2025-05", "pos": "Lublin", "total": 41, "done": 29, "canceled": 11, "absent": 0}, {"month": "2025-05", "pos": "Poznań", "total": 193, "done": 144, "canceled": 41, "absent": 8}, {"month": "2025-05", "pos": "Praga", "total": 50, "done": 31, "canceled": 18, "absent": 1}, {"month": "2025-05", "pos": "Szczecin", "total": 49, "done": 40, "canceled": 9, "absent": 0}, {"month": "2025-05", "pos": "Warszawa Arkadia", "total": 254, "done": 158, "canceled": 80, "absent": 17}, {"month": "2025-05", "pos": "Warszawa Chmielna", "total": 333, "done": 220, "canceled": 109, "absent": 6}, {"month": "2025-05", "pos": "Warszawa Targowa", "total": 90, "done": 66, "canceled": 21, "absent": 4}, {"month": "2025-05", "pos": "Warszawa Wola Park", "total": 130, "done": 72, "canceled": 49, "absent": 8}, {"month": "2025-05", "pos": "Wrocław Stawowa", "total": 205, "done": 147, "canceled": 45, "absent": 13}, {"month": "2025-05", "pos": "Łódź", "total": 98, "done": 76, "canceled": 19, "absent": 4}, {"month": "2025-06", "pos": "Gdańsk", "total": 149, "done": 96, "canceled": 48, "absent": 6}, {"month": "2025-06", "pos": "Gdynia Riviera", "total": 103, "done": 67, "canceled": 30, "absent": 4}, {"month": "2025-06", "pos": "Katowice", "total": 133, "done": 94, "canceled": 31, "absent": 8}, {"month": "2025-06", "pos": "Kraków Pawia", "total": 70, "done": 50, "canceled": 18, "absent": 1}, {"month": "2025-06", "pos": "Kraków Starowiślna", "total": 103, "done": 76, "canceled": 27, "absent": 2}, {"month": "2025-06", "pos": "Lublin", "total": 17, "done": 11, "canceled": 6, "absent": 0}, {"month": "2025-06", "pos": "Poznań", "total": 178, "done": 130, "canceled": 38, "absent": 9}, {"month": "2025-06", "pos": "Praga", "total": 40, "done": 33, "canceled": 13, "absent": 5}, {"month": "2025-06", "pos": "Szczecin", "total": 47, "done": 36, "canceled": 9, "absent": 2}, {"month": "2025-06", "pos": "Warszawa Arkadia", "total": 237, "done": 156, "canceled": 71, "absent": 12}, {"month": "2025-06", "pos": "Warszawa Chmielna", "total": 298, "done": 197, "canceled": 96, "absent": 8}, {"month": "2025-06", "pos": "Warszawa Targowa", "total": 113, "done": 71, "canceled": 40, "absent": 2}, {"month": "2025-06", "pos": "Warszawa Wola Park", "total": 101, "done": 60, "canceled": 29, "absent": 6}, {"month": "2025-06", "pos": "Wrocław Stawowa", "total": 180, "done": 125, "canceled": 44, "absent": 11}, {"month": "2025-06", "pos": "Łódź", "total": 105, "done": 78, "canceled": 20, "absent": 7}, {"month": "2025-07", "pos": "Gdańsk", "total": 121, "done": 83, "canceled": 35, "absent": 4}, {"month": "2025-07", "pos": "Gdynia Riviera", "total": 177, "done": 121, "canceled": 46, "absent": 10}, {"month": "2025-07", "pos": "Katowice", "total": 192, "done": 121, "canceled": 64, "absent": 7}, {"month": "2025-07", "pos": "Kraków Pawia", "total": 75, "done": 50, "canceled": 23, "absent": 0}, {"month": "2025-07", "pos": "Kraków Starowiślna", "total": 117, "done": 87, "canceled": 27, "absent": 3}, {"month": "2025-07", "pos": "Poznań", "total": 170, "done": 126, "canceled": 38, "absent": 6}, {"month": "2025-07", "pos": "Praga", "total": 33, "done": 31, "canceled": 2, "absent": 0}, {"month": "2025-07", "pos": "Szczecin", "total": 44, "done": 26, "canceled": 15, "absent": 3}, {"month": "2025-07", "pos": "Warszawa Arkadia", "total": 293, "done": 189, "canceled": 86, "absent": 18}, {"month": "2025-07", "pos": "Warszawa Chmielna", "total": 280, "done": 180, "canceled": 93, "absent": 7}, {"month": "2025-07", "pos": "Warszawa Targowa", "total": 123, "done": 75, "canceled": 45, "absent": 3}, {"month": "2025-07", "pos": "Warszawa Wola Park", "total": 132, "done": 88, "canceled": 42, "absent": 2}, {"month": "2025-07", "pos": "Wrocław Stawowa", "total": 216, "done": 144, "canceled": 58, "absent": 14}, {"month": "2025-07", "pos": "Łódź", "total": 103, "done": 86, "canceled": 18, "absent": 0}, {"month": "2025-08", "pos": "Gdańsk", "total": 141, "done": 106, "canceled": 26, "absent": 9}, {"month": "2025-08", "pos": "Gdynia Riviera", "total": 181, "done": 123, "canceled": 50, "absent": 9}, {"month": "2025-08", "pos": "Katowice", "total": 212, "done": 156, "canceled": 52, "absent": 4}, {"month": "2025-08", "pos": "Kraków Pawia", "total": 94, "done": 69, "canceled": 22, "absent": 1}, {"month": "2025-08", "pos": "Kraków Starowiślna", "total": 144, "done": 103, "canceled": 38, "absent": 3}, {"month": "2025-08", "pos": "Poznań", "total": 204, "done": 139, "canceled": 56, "absent": 9}, {"month": "2025-08", "pos": "Szczecin", "total": 69, "done": 50, "canceled": 19, "absent": 1}, {"month": "2025-08", "pos": "Warszawa Arkadia", "total": 299, "done": 208, "canceled": 78, "absent": 17}, {"month": "2025-08", "pos": "Warszawa Chmielna", "total": 345, "done": 230, "canceled": 105, "absent": 10}, {"month": "2025-08", "pos": "Warszawa Targowa", "total": 116, "done": 74, "canceled": 39, "absent": 3}, {"month": "2025-08", "pos": "Warszawa Wola Park", "total": 157, "done": 100, "canceled": 48, "absent": 8}, {"month": "2025-08", "pos": "Wrocław Stawowa", "total": 241, "done": 161, "canceled": 63, "absent": 17}, {"month": "2025-08", "pos": "Łódź", "total": 109, "done": 86, "canceled": 17, "absent": 7}, {"month": "2025-09", "pos": "Gdańsk", "total": 102, "done": 81, "canceled": 17, "absent": 4}, {"month": "2025-09", "pos": "Gdynia Riviera", "total": 122, "done": 82, "canceled": 37, "absent": 3}, {"month": "2025-09", "pos": "Katowice", "total": 136, "done": 94, "canceled": 38, "absent": 4}, {"month": "2025-09", "pos": "Kraków Pawia", "total": 85, "done": 56, "canceled": 24, "absent": 3}, {"month": "2025-09", "pos": "Kraków Starowiślna", "total": 82, "done": 54, "canceled": 26, "absent": 2}, {"month": "2025-09", "pos": "Poznań", "total": 162, "done": 134, "canceled": 24, "absent": 4}, {"month": "2025-09", "pos": "Praga", "total": 49, "done": 41, "canceled": 9, "absent": 2}, {"month": "2025-09", "pos": "Szczecin", "total": 43, "done": 25, "canceled": 17, "absent": 1}, {"month": "2025-09", "pos": "Warszawa Arkadia", "total": 231, "done": 157, "canceled": 60, "absent": 13}, {"month": "2025-09", "pos": "Warszawa Chmielna", "total": 261, "done": 173, "canceled": 76, "absent": 14}, {"month": "2025-09", "pos": "Warszawa Targowa", "total": 95, "done": 71, "canceled": 21, "absent": 4}, {"month": "2025-09", "pos": "Warszawa Wola Park", "total": 107, "done": 70, "canceled": 28, "absent": 7}, {"month": "2025-09", "pos": "Wrocław Stawowa", "total": 123, "done": 91, "canceled": 22, "absent": 10}, {"month": "2025-09", "pos": "Wrocław Wroclavia", "total": 16, "done": 1, "canceled": 14, "absent": 0}, {"month": "2025-09", "pos": "Łódź", "total": 124, "done": 93, "canceled": 25, "absent": 6}, {"month": "2025-10", "pos": "Gdańsk", "total": 172, "done": 116, "canceled": 49, "absent": 8}, {"month": "2025-10", "pos": "Gdynia Riviera", "total": 167, "done": 111, "canceled": 49, "absent": 7}, {"month": "2025-10", "pos": "Katowice", "total": 191, "done": 124, "canceled": 62, "absent": 7}, {"month": "2025-10", "pos": "Kraków Pawia", "total": 153, "done": 113, "canceled": 33, "absent": 3}, {"month": "2025-10", "pos": "Kraków Starowiślna", "total": 106, "done": 74, "canceled": 27, "absent": 5}, {"month": "2025-10", "pos": "Lublin", "total": 40, "done": 25, "canceled": 11, "absent": 3}, {"month": "2025-10", "pos": "Poznań", "total": 249, "done": 171, "canceled": 64, "absent": 14}, {"month": "2025-10", "pos": "Praga", "total": 50, "done": 34, "canceled": 16, "absent": 0}, {"month": "2025-10", "pos": "Szczecin", "total": 51, "done": 37, "canceled": 11, "absent": 3}, {"month": "2025-10", "pos": "Warszawa Arkadia", "total": 308, "done": 201, "canceled": 77, "absent": 24}, {"month": "2025-10", "pos": "Warszawa Chmielna", "total": 341, "done": 200, "canceled": 128, "absent": 15}, {"month": "2025-10", "pos": "Warszawa Targowa", "total": 115, "done": 76, "canceled": 33, "absent": 6}, {"month": "2025-10", "pos": "Warszawa Wola Park", "total": 153, "done": 103, "canceled": 42, "absent": 7}, {"month": "2025-10", "pos": "Wrocław Wroclavia", "total": 274, "done": 173, "canceled": 85, "absent": 16}, {"month": "2025-10", "pos": "Łódź", "total": 152, "done": 121, "canceled": 30, "absent": 1}, {"month": "2025-11", "pos": "Gdańsk", "total": 221, "done": 159, "canceled": 50, "absent": 12}, {"month": "2025-11", "pos": "Gdynia Riviera", "total": 172, "done": 113, "canceled": 53, "absent": 7}, {"month": "2025-11", "pos": "Katowice", "total": 315, "done": 195, "canceled": 110, "absent": 10}, {"month": "2025-11", "pos": "Kraków Pawia", "total": 154, "done": 117, "canceled": 33, "absent": 1}, {"month": "2025-11", "pos": "Kraków Starowiślna", "total": 171, "done": 116, "canceled": 47, "absent": 8}, {"month": "2025-11", "pos": "Lublin", "total": 69, "done": 44, "canceled": 22, "absent": 0}, {"month": "2025-11", "pos": "Poznań", "total": 378, "done": 256, "canceled": 111, "absent": 11}, {"month": "2025-11", "pos": "Praga", "total": 64, "done": 42, "canceled": 19, "absent": 4}, {"month": "2025-11", "pos": "Szczecin", "total": 74, "done": 46, "canceled": 19, "absent": 10}, {"month": "2025-11", "pos": "Warszawa Arkadia", "total": 394, "done": 241, "canceled": 129, "absent": 28}, {"month": "2025-11", "pos": "Warszawa Chmielna", "total": 466, "done": 284, "canceled": 169, "absent": 14}, {"month": "2025-11", "pos": "Warszawa Targowa", "total": 180, "done": 128, "canceled": 49, "absent": 4}, {"month": "2025-11", "pos": "Warszawa Wola Park", "total": 220, "done": 147, "canceled": 66, "absent": 10}, {"month": "2025-11", "pos": "Wrocław Wroclavia", "total": 351, "done": 241, "canceled": 77, "absent": 33}, {"month": "2025-11", "pos": "Łódź", "total": 179, "done": 131, "canceled": 39, "absent": 12}, {"month": "2025-12", "pos": "Gdańsk", "total": 120, "done": 78, "canceled": 39, "absent": 3}, {"month": "2025-12", "pos": "Gdynia Riviera", "total": 115, "done": 91, "canceled": 22, "absent": 2}, {"month": "2025-12", "pos": "Katowice", "total": 135, "done": 69, "canceled": 60, "absent": 6}, {"month": "2025-12", "pos": "Kraków Pawia", "total": 66, "done": 45, "canceled": 19, "absent": 2}, {"month": "2025-12", "pos": "Kraków Starowiślna", "total": 85, "done": 56, "canceled": 24, "absent": 5}, {"month": "2025-12", "pos": "Poznań", "total": 207, "done": 146, "canceled": 51, "absent": 11}, {"month": "2025-12", "pos": "Szczecin", "total": 43, "done": 28, "canceled": 13, "absent": 2}, {"month": "2025-12", "pos": "Warszawa Arkadia", "total": 278, "done": 176, "canceled": 84, "absent": 18}, {"month": "2025-12", "pos": "Warszawa Chmielna", "total": 335, "done": 199, "canceled": 124, "absent": 13}, {"month": "2025-12", "pos": "Warszawa Targowa", "total": 112, "done": 77, "canceled": 33, "absent": 2}, {"month": "2025-12", "pos": "Warszawa Wola Park", "total": 147, "done": 97, "canceled": 48, "absent": 2}, {"month": "2025-12", "pos": "Wrocław Wroclavia", "total": 228, "done": 147, "canceled": 63, "absent": 21}, {"month": "2025-12", "pos": "Łódź", "total": 104, "done": 76, "canceled": 21, "absent": 7}, {"month": "2026-01", "pos": "Gdańsk", "total": 140, "done": 95, "canceled": 36, "absent": 9}, {"month": "2026-01", "pos": "Gdynia Riviera", "total": 147, "done": 107, "canceled": 36, "absent": 4}, {"month": "2026-01", "pos": "Katowice", "total": 209, "done": 135, "canceled": 72, "absent": 3}, {"month": "2026-01", "pos": "Kraków Pawia", "total": 79, "done": 59, "canceled": 19, "absent": 1}, {"month": "2026-01", "pos": "Kraków Starowiślna", "total": 113, "done": 81, "canceled": 31, "absent": 1}, {"month": "2026-01", "pos": "Poznań", "total": 261, "done": 175, "canceled": 72, "absent": 14}, {"month": "2026-01", "pos": "Szczecin", "total": 65, "done": 46, "canceled": 20, "absent": 0}, {"month": "2026-01", "pos": "Warszawa Arkadia", "total": 351, "done": 236, "canceled": 94, "absent": 22}, {"month": "2026-01", "pos": "Warszawa Chmielna", "total": 351, "done": 227, "canceled": 113, "absent": 11}, {"month": "2026-01", "pos": "Warszawa Targowa", "total": 121, "done": 70, "canceled": 52, "absent": 0}, {"month": "2026-01", "pos": "Warszawa Wola Park", "total": 165, "done": 96, "canceled": 59, "absent": 6}, {"month": "2026-01", "pos": "Wrocław Magnolia", "total": 13, "done": 9, "canceled": 3, "absent": 1}, {"month": "2026-01", "pos": "Wrocław Wroclavia", "total": 245, "done": 159, "canceled": 69, "absent": 17}, {"month": "2026-01", "pos": "Łódź", "total": 128, "done": 83, "canceled": 35, "absent": 10}, {"month": "2026-02", "pos": "Gdańsk", "total": 117, "done": 74, "canceled": 34, "absent": 9}, {"month": "2026-02", "pos": "Gdynia Riviera", "total": 129, "done": 103, "canceled": 26, "absent": 0}, {"month": "2026-02", "pos": "Katowice", "total": 184, "done": 117, "canceled": 60, "absent": 7}, {"month": "2026-02", "pos": "Kraków Pawia", "total": 116, "done": 91, "canceled": 22, "absent": 2}, {"month": "2026-02", "pos": "Kraków Starowiślna", "total": 108, "done": 69, "canceled": 33, "absent": 6}, {"month": "2026-02", "pos": "Lublin", "total": 25, "done": 11, "canceled": 11, "absent": 1}, {"month": "2026-02", "pos": "Poznań", "total": 271, "done": 187, "canceled": 68, "absent": 16}, {"month": "2026-02", "pos": "Szczecin", "total": 55, "done": 35, "canceled": 18, "absent": 4}, {"month": "2026-02", "pos": "Warszawa Arkadia", "total": 327, "done": 212, "canceled": 100, "absent": 16}, {"month": "2026-02", "pos": "Warszawa Chmielna", "total": 352, "done": 226, "canceled": 120, "absent": 11}, {"month": "2026-02", "pos": "Warszawa Targowa", "total": 141, "done": 90, "canceled": 38, "absent": 13}, {"month": "2026-02", "pos": "Warszawa Wola Park", "total": 171, "done": 116, "canceled": 53, "absent": 4}, {"month": "2026-02", "pos": "Wrocław Magnolia", "total": 103, "done": 71, "canceled": 23, "absent": 9}, {"month": "2026-02", "pos": "Wrocław Wroclavia", "total": 229, "done": 156, "canceled": 52, "absent": 22}, {"month": "2026-02", "pos": "Łódź", "total": 133, "done": 88, "canceled": 41, "absent": 5}, {"month": "2026-03", "pos": "Gdańsk", "total": 146, "done": 109, "canceled": 29, "absent": 3}, {"month": "2026-03", "pos": "Gdynia Riviera", "total": 128, "done": 94, "canceled": 30, "absent": 1}, {"month": "2026-03", "pos": "Katowice", "total": 248, "done": 170, "canceled": 62, "absent": 9}, {"month": "2026-03", "pos": "Kraków Pawia", "total": 93, "done": 74, "canceled": 14, "absent": 1}, {"month": "2026-03", "pos": "Kraków Starowiślna", "total": 111, "done": 80, "canceled": 24, "absent": 5}, {"month": "2026-03", "pos": "Lublin", "total": 79, "done": 50, "canceled": 18, "absent": 5}, {"month": "2026-03", "pos": "Poznań", "total": 222, "done": 145, "canceled": 58, "absent": 7}, {"month": "2026-03", "pos": "Szczecin", "total": 42, "done": 21, "canceled": 16, "absent": 3}, {"month": "2026-03", "pos": "Warszawa Arkadia", "total": 329, "done": 212, "canceled": 93, "absent": 20}, {"month": "2026-03", "pos": "Warszawa Chmielna", "total": 386, "done": 234, "canceled": 119, "absent": 21}, {"month": "2026-03", "pos": "Warszawa Mokotów", "total": 84, "done": 53, "canceled": 23, "absent": 7}, {"month": "2026-03", "pos": "Warszawa Targowa", "total": 174, "done": 112, "canceled": 55, "absent": 6}, {"month": "2026-03", "pos": "Warszawa Wola Park", "total": 140, "done": 99, "canceled": 34, "absent": 5}, {"month": "2026-03", "pos": "Wrocław Magnolia", "total": 139, "done": 91, "canceled": 35, "absent": 11}, {"month": "2026-03", "pos": "Wrocław Wroclavia", "total": 196, "done": 126, "canceled": 55, "absent": 6}, {"month": "2026-03", "pos": "Łódź", "total": 148, "done": 105, "canceled": 38, "absent": 2}], "salon_summary": [{"pos": "Gdańsk", "total": 2251, "done": 1521, "canceled": 604, "absent": 105, "avg_lead": 1.2, "website_pct": 65.5, "city_group": "Trójmiasto", "location_type": "ulica", "done_pct": 67.6, "canceled_pct": 26.8, "absent_pct": 4.7}, {"pos": "Gdynia Riviera", "total": 1441, "done": 1012, "canceled": 379, "absent": 47, "avg_lead": 1.0, "website_pct": 42.4, "city_group": "Trójmiasto", "location_type": "galeria", "done_pct": 70.2, "canceled_pct": 26.3, "absent_pct": 3.3}, {"pos": "Katowice", "total": 2655, "done": 1735, "canceled": 808, "absent": 92, "avg_lead": 1.6, "website_pct": 55.1, "city_group": "Katowice", "location_type": "galeria", "done_pct": 65.3, "canceled_pct": 30.4, "absent_pct": 3.5}, {"pos": "Kraków Pawia", "total": 1471, "done": 1043, "canceled": 368, "absent": 18, "avg_lead": 1.0, "website_pct": 63.6, "city_group": "Kraków", "location_type": "ulica", "done_pct": 70.9, "canceled_pct": 25.0, "absent_pct": 1.2}, {"pos": "Kraków Starowiślna", "total": 1662, "done": 1165, "canceled": 434, "absent": 58, "avg_lead": 1.1, "website_pct": 60.6, "city_group": "Kraków", "location_type": "ulica", "done_pct": 70.1, "canceled_pct": 26.1, "absent_pct": 3.5}, {"pos": "Lublin", "total": 442, "done": 274, "canceled": 129, "absent": 14, "avg_lead": 2.7, "website_pct": 55.1, "city_group": "Lublin", "location_type": "ulica", "done_pct": 62.0, "canceled_pct": 29.2, "absent_pct": 3.2}, {"pos": "Poznań", "total": 3191, "done": 2228, "canceled": 793, "absent": 141, "avg_lead": 1.3, "website_pct": 60.7, "city_group": "Poznań", "location_type": "galeria", "done_pct": 69.8, "canceled_pct": 24.9, "absent_pct": 4.4}, {"pos": "Praga", "total": 623, "done": 422, "canceled": 176, "absent": 31, "avg_lead": 1.3, "website_pct": 63.0, "city_group": "Praga", "location_type": "ulica", "done_pct": 67.7, "canceled_pct": 28.3, "absent_pct": 5.0}, {"pos": "Szczecin", "total": 751, "done": 485, "canceled": 227, "absent": 36, "avg_lead": 1.9, "website_pct": 54.2, "city_group": "Szczecin", "location_type": "ulica", "done_pct": 64.6, "canceled_pct": 30.2, "absent_pct": 4.8}, {"pos": "Warszawa Arkadia", "total": 4257, "done": 2768, "canceled": 1221, "absent": 256, "avg_lead": 1.0, "website_pct": 57.5, "city_group": "Warszawa", "location_type": "galeria", "done_pct": 65.0, "canceled_pct": 28.7, "absent_pct": 6.0}, {"pos": "Warszawa Chmielna", "total": 4762, "done": 3009, "canceled": 1580, "absent": 162, "avg_lead": 1.4, "website_pct": 53.5, "city_group": "Warszawa", "location_type": "ulica", "done_pct": 63.2, "canceled_pct": 33.2, "absent_pct": 3.4}, {"pos": "Warszawa Mokotów", "total": 84, "done": 53, "canceled": 23, "absent": 7, "avg_lead": 1.2, "website_pct": 60.7, "city_group": "Warszawa", "location_type": "galeria", "done_pct": 63.1, "canceled_pct": 27.4, "absent_pct": 8.3}, {"pos": "Warszawa Targowa", "total": 1610, "done": 1070, "canceled": 484, "absent": 60, "avg_lead": 1.6, "website_pct": 50.2, "city_group": "Warszawa", "location_type": "ulica", "done_pct": 66.5, "canceled_pct": 30.1, "absent_pct": 3.7}, {"pos": "Warszawa Wola Park", "total": 1988, "done": 1285, "canceled": 599, "absent": 74, "avg_lead": 1.2, "website_pct": 52.7, "city_group": "Warszawa", "location_type": "galeria", "done_pct": 64.6, "canceled_pct": 30.1, "absent_pct": 3.7}, {"pos": "Wrocław Magnolia", "total": 255, "done": 171, "canceled": 61, "absent": 21, "avg_lead": 1.0, "website_pct": 49.2, "city_group": "Wrocław", "location_type": "galeria", "done_pct": 67.1, "canceled_pct": 23.9, "absent_pct": 8.2}, {"pos": "Wrocław Stawowa", "total": 1724, "done": 1153, "canceled": 440, "absent": 110, "avg_lead": 1.8, "website_pct": 67.1, "city_group": "Wrocław", "location_type": "ulica", "done_pct": 66.9, "canceled_pct": 25.5, "absent_pct": 6.4}, {"pos": "Wrocław Wroclavia", "total": 1539, "done": 1003, "canceled": 415, "absent": 115, "avg_lead": 1.8, "website_pct": 59.3, "city_group": "Wrocław", "location_type": "galeria", "done_pct": 65.2, "canceled_pct": 27.0, "absent_pct": 7.5}, {"pos": "Łódź", "total": 1714, "done": 1246, "canceled": 397, "absent": 65, "avg_lead": 0.9, "website_pct": 47.4, "city_group": "Łódź", "location_type": "ulica", "done_pct": 72.7, "canceled_pct": 23.2, "absent_pct": 3.8}], "type_monthly": [{"month": "2025-01", "location_type": "galeria", "total": 558, "done": 357, "canceled": 156, "absent": 18}, {"month": "2025-01", "location_type": "ulica", "total": 868, "done": 516, "canceled": 268, "absent": 34}, {"month": "2025-02", "location_type": "galeria", "total": 436, "done": 243, "canceled": 136, "absent": 19}, {"month": "2025-02", "location_type": "ulica", "total": 819, "done": 478, "canceled": 240, "absent": 28}, {"month": "2025-03", "location_type": "galeria", "total": 824, "done": 568, "canceled": 220, "absent": 34}, {"month": "2025-03", "location_type": "ulica", "total": 1513, "done": 1044, "canceled": 412, "absent": 59}, {"month": "2025-04", "location_type": "galeria", "total": 748, "done": 522, "canceled": 189, "absent": 39}, {"month": "2025-04", "location_type": "ulica", "total": 1242, "done": 822, "canceled": 371, "absent": 51}, {"month": "2025-05", "location_type": "galeria", "total": 728, "done": 478, "canceled": 208, "absent": 42}, {"month": "2025-05", "location_type": "ulica", "total": 1265, "done": 877, "canceled": 351, "absent": 40}, {"month": "2025-06", "location_type": "galeria", "total": 752, "done": 507, "canceled": 199, "absent": 39}, {"month": "2025-06", "location_type": "ulica", "total": 1122, "done": 773, "canceled": 321, "absent": 44}, {"month": "2025-07", "location_type": "galeria", "total": 964, "done": 645, "canceled": 276, "absent": 43}, {"month": "2025-07", "location_type": "ulica", "total": 1112, "done": 762, "canceled": 316, "absent": 34}, {"month": "2025-08", "location_type": "galeria", "total": 1053, "done": 726, "canceled": 284, "absent": 47}, {"month": "2025-08", "location_type": "ulica", "total": 1259, "done": 879, "canceled": 329, "absent": 51}, {"month": "2025-09", "location_type": "galeria", "total": 774, "done": 538, "canceled": 201, "absent": 31}, {"month": "2025-09", "location_type": "ulica", "total": 964, "done": 685, "canceled": 237, "absent": 46}, {"month": "2025-10", "location_type": "galeria", "total": 1342, "done": 883, "canceled": 379, "absent": 75}, {"month": "2025-10", "location_type": "ulica", "total": 1180, "done": 796, "canceled": 338, "absent": 44}, {"month": "2025-11", "location_type": "galeria", "total": 1830, "done": 1193, "canceled": 546, "absent": 99}, {"month": "2025-11", "location_type": "ulica", "total": 1578, "done": 1067, "canceled": 447, "absent": 65}, {"month": "2025-12", "location_type": "galeria", "total": 1110, "done": 726, "canceled": 328, "absent": 60}, {"month": "2025-12", "location_type": "ulica", "total": 865, "done": 559, "canceled": 273, "absent": 34}, {"month": "2026-01", "location_type": "galeria", "total": 1391, "done": 917, "canceled": 405, "absent": 67}, {"month": "2026-01", "location_type": "ulica", "total": 997, "done": 661, "canceled": 306, "absent": 32}, {"month": "2026-02", "location_type": "galeria", "total": 1414, "done": 962, "canceled": 382, "absent": 74}, {"month": "2026-02", "location_type": "ulica", "total": 1047, "done": 684, "canceled": 317, "absent": 51}, {"month": "2026-03", "location_type": "galeria", "total": 1486, "done": 990, "canceled": 390, "absent": 66}, {"month": "2026-03", "location_type": "ulica", "total": 1179, "done": 785, "canceled": 313, "absent": 46}], "hour_source_heatmap": {"website": {"0": 215, "1": 71, "2": 44, "3": 16, "4": 14, "5": 47, "6": 182, "7": 394, "8": 775, "9": 1088, "10": 1282, "11": 1241, "12": 1215, "13": 1129, "14": 1019, "15": 1022, "16": 897, "17": 912, "18": 840, "19": 794, "20": 755, "21": 747, "22": 626, "23": 444}, "helpline": {"8": 7, "9": 289, "10": 396, "11": 321, "12": 265, "13": 227, "14": 213, "15": 233, "16": 237, "17": 23, "18": 2, "19": 1, "22": 1}, "showroom": {"8": 6, "9": 186, "10": 693, "11": 938, "12": 1157, "13": 1138, "14": 1154, "15": 1240, "16": 1315, "17": 1468, "18": 1310, "19": 822, "20": 362, "21": 96, "22": 4}}, "source_per_salon": {"salons": ["Warszawa Chmielna", "Warszawa Arkadia", "Poznań", "Katowice", "Gdańsk", "Warszawa Wola Park", "Łódź", "Warszawa Targowa", "Wrocław Wroclavia", "Kraków Starowiślna", "Gdynia Riviera", "Wrocław Stawowa", "Kraków Pawia", "Szczecin", "Praga", "Lublin", "Wrocław Magnolia", "Warszawa Mokotów"], "website": [2202, 2061, 1667, 1273, 1191, 926, 717, 811, 915, 860, 612, 838, 792, 353, 189, 185, 126, 51], "showroom": [1768, 1542, 1093, 1045, 617, 821, 818, 599, 524, 531, 760, 477, 457, 285, 235, 168, 120, 29], "helpline": [459, 277, 160, 149, 162, 131, 88, 207, 104, 126, 73, 90, 80, 62, 2, 31, 10, 4]}, "lead_time_dist": {"bins": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30], "website": [6308, 3580, 2339, 1559, 1150, 831, 627, 451, 334, 266, 199, 172, 111, 84, 73, 64, 45, 44, 45, 32, 31, 23, 19, 15, 5, 11, 6, 6, 9, 3, 1], "showroom": [6229, 1329, 946, 613, 469, 291, 330, 179, 104, 86, 66, 36, 34, 35, 28, 10, 11, 8, 4, 12, 9, 10, 3, 5, 4, 1, 4, 2, 0, 0, 0], "helpline": [763, 393, 217, 166, 141, 117, 101, 97, 62, 37, 30, 19, 12, 7, 13, 8, 3, 5, 2, 5, 0, 3, 3, 1, 0, 1, 3, 0, 2, 1, 0]}, "lead_time_salon": {"salons": ["Lublin", "Szczecin", "Wrocław Wroclavia", "Wrocław Stawowa", "Warszawa Targowa", "Katowice", "Warszawa Chmielna", "Poznań", "Praga", "Warszawa Mokotów", "Gdańsk", "Warszawa Wola Park", "Kraków Starowiślna", "Kraków Pawia", "Warszawa Arkadia", "Gdynia Riviera", "Wrocław Magnolia", "Łódź"], "values": [2.7, 1.9, 1.8, 1.8, 1.6, 1.6, 1.4, 1.3, 1.3, 1.2, 1.2, 1.2, 1.1, 1.0, 1.0, 1.0, 1.0, 0.9]}, "lead_time_monthly": {"months": ["2025-01", "2025-02", "2025-03", "2025-04", "2025-05", "2025-06", "2025-07", "2025-08", "2025-09", "2025-10", "2025-11", "2025-12", "2026-01", "2026-02", "2026-03"], "values": [1.9, 1.9, 1.3, 1.2, 1.0, 1.1, 1.0, 1.2, 1.0, 1.2, 1.7, 1.2, 1.2, 1.2, 1.2]}, "cancel_source": {"labels": ["website", "showroom", "helpline", "sms"], "values": [3442, 3183, 1319, 1194]}, "cancel_advance_dist": {"bins": ["0h", "12h", "24h", "36h", "48h", "60h", "72h", "84h", "96h", "108h", "120h", "132h", "144h", "156h"], "values": [4858, 1133, 780, 567, 454, 306, 175, 137, 114, 77, 101, 47, 45, 51]}, "cancel_rate_salon": {"salons": ["Warszawa Chmielna", "Katowice", "Szczecin", "Warszawa Targowa", "Warszawa Wola Park", "Lublin", "Warszawa Arkadia", "Praga", "Warszawa Mokotów", "Wrocław Wroclavia", "Gdańsk", "Gdynia Riviera", "Kraków Starowiślna", "Wrocław Stawowa", "Kraków Pawia", "Poznań", "Wrocław Magnolia", "Łódź"], "rates": [33.0, 30.4, 30.0, 29.9, 29.8, 29.1, 28.6, 27.5, 27.4, 26.9, 26.8, 26.2, 26.0, 25.5, 24.9, 24.8, 23.8, 23.1], "counts": [1580, 808, 227, 484, 599, 129, 1221, 176, 23, 415, 604, 379, 434, 440, 368, 793, 61, 397]}, "dow_hour_heatmap": [[0, 0, 32], [1, 0, 9], [2, 0, 5], [3, 0, 1], [4, 0, 1], [5, 0, 6], [6, 0, 21], [7, 0, 58], [8, 0, 148], [9, 0, 304], [10, 0, 446], [11, 0, 473], [12, 0, 513], [13, 0, 433], [14, 0, 442], [15, 0, 454], [16, 0, 419], [17, 0, 388], [18, 0, 367], [19, 0, 265], [20, 0, 212], [21, 0, 128], [22, 0, 92], [23, 0, 61], [0, 1, 32], [1, 1, 10], [2, 1, 6], [3, 1, 3], [4, 1, 2], [5, 1, 6], [6, 1, 37], [7, 1, 61], [8, 1, 120], [9, 1, 276], [10, 1, 379], [11, 1, 356], [12, 1, 355], [13, 1, 352], [14, 1, 377], [15, 1, 367], [16, 1, 387], [17, 1, 396], [18, 1, 325], [19, 1, 270], [20, 1, 169], [21, 1, 125], [22, 1, 108], [23, 1, 85], [0, 2, 31], [1, 2, 13], [2, 2, 7], [3, 2, 3], [4, 2, 3], [5, 2, 12], [6, 2, 26], [7, 2, 80], [8, 2, 127], [9, 2, 254], [10, 2, 409], [11, 2, 408], [12, 2, 423], [13, 2, 348], [14, 2, 339], [15, 2, 382], [16, 2, 393], [17, 2, 350], [18, 2, 366], [19, 2, 259], [20, 2, 150], [21, 2, 139], [22, 2, 104], [23, 2, 70], [0, 3, 30], [1, 3, 7], [2, 3, 8], [3, 3, 6], [4, 3, 3], [5, 3, 5], [6, 3, 32], [7, 3, 67], [8, 3, 139], [9, 3, 242], [10, 3, 388], [11, 3, 333], [12, 3, 356], [13, 3, 359], [14, 3, 325], [15, 3, 336], [16, 3, 374], [17, 3, 355], [18, 3, 327], [19, 3, 261], [20, 3, 169], [21, 3, 126], [22, 3, 92], [23, 3, 51], [0, 4, 36], [1, 4, 5], [2, 4, 9], [4, 4, 1], [5, 4, 8], [6, 4, 34], [7, 4, 69], [8, 4, 124], [9, 4, 239], [10, 4, 348], [11, 4, 401], [12, 4, 372], [13, 4, 388], [14, 4, 352], [15, 4, 392], [16, 4, 370], [17, 4, 406], [18, 4, 346], [19, 4, 237], [20, 4, 178], [21, 4, 136], [22, 4, 96], [23, 4, 72], [0, 5, 36], [1, 5, 16], [2, 5, 6], [3, 5, 3], [4, 5, 2], [5, 5, 6], [6, 5, 23], [7, 5, 41], [8, 5, 83], [9, 5, 170], [10, 5, 299], [11, 5, 392], [12, 5, 490], [13, 5, 464], [14, 5, 427], [15, 5, 431], [16, 5, 377], [17, 5, 359], [18, 5, 290], [19, 5, 202], [20, 5, 116], [21, 5, 81], [22, 5, 62], [23, 5, 44], [0, 6, 18], [1, 6, 11], [2, 6, 3], [4, 6, 2], [5, 6, 4], [6, 6, 9], [7, 6, 18], [8, 6, 47], [9, 6, 78], [10, 6, 102], [11, 6, 137], [12, 6, 128], [13, 6, 150], [14, 6, 124], [15, 6, 133], [16, 6, 129], [17, 6, 149], [18, 6, 131], [19, 6, 123], [20, 6, 123], [21, 6, 108], [22, 6, 77], [23, 6, 61]], "visit_distribution": {"visits": [1, 2, 3, 4, 5], "clients": [19080, 1100, 84, 11, 2]}, "visit_intervals": {"bins": ["0-30d", "30-60d", "60-90d", "90-120d", "120-150d", "150-180d", "180-210d", "210-240d", "240-270d", "270-300d", "300-330d", "330-360d", "360-390d"], "values": [514, 290, 87, 42, 28, 27, 25, 23, 19, 22, 19, 11, 15]}, "cancel_chain": {"total_cancels": 9138, "rebooked": 6022, "rebook_rate": 65.9, "same_salon_pct": 89.2, "next_done_pct": 64.6}, "rebook_gap_dist": {"bins": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29], "values": [2239, 708, 515, 366, 254, 198, 174, 125, 89, 81, 66, 62, 66, 47, 37, 37, 22, 27, 27, 19, 18, 21, 13, 18, 17, 17, 14, 13, 16, 20]}, "rebook_rate_salon": {"salons": ["Warszawa Chmielna", "Wrocław Wroclavia", "Wrocław Stawowa", "Warszawa Targowa", "Warszawa Wola Park", "Warszawa Arkadia", "Katowice", "Szczecin", "Kraków Starowiślna", "Gdańsk", "Gdynia Riviera", "Kraków Pawia", "Poznań", "Łódź", "Lublin", "Wrocław Magnolia", "Praga", "Warszawa Mokotów"], "rates": [69.9, 69.6, 69.5, 68.2, 67.6, 66.8, 65.1, 64.8, 64.7, 64.4, 64.4, 63.9, 63.8, 62.2, 56.6, 54.1, 49.4, 17.4]}, "new_salon_impact": [{"salon": "Warszawa Targowa", "city": "Warszawa", "open_date": "2025-03-01", "existing_before": 886, "existing_after": 2184, "new_salon_volume": 322, "total_after": 2506, "net_change": 1620, "cannibalization": 0}, {"salon": "Gdynia Riviera", "city": "Trójmiasto", "open_date": "2025-06-18", "existing_before": 502, "existing_after": 382, "new_salon_volume": 539, "total_after": 921, "net_change": 419, "cannibalization": 120}, {"salon": "Wrocław Wroclavia", "city": "Wrocław", "open_date": "2025-09-22", "existing_before": 614, "existing_after": 29, "new_salon_volume": 810, "total_after": 839, "net_change": 225, "cannibalization": 585}, {"salon": "Wrocław Magnolia", "city": "Wrocław", "open_date": "2026-01-22", "existing_before": 809, "existing_after": 525, "new_salon_volume": 256, "total_after": 781, "net_change": -28, "cannibalization": 284}, {"salon": "Warszawa Mokotów", "city": "Warszawa", "open_date": "2026-03-21", "existing_before": 2980, "existing_after": 331, "new_salon_volume": 84, "total_after": 415, "net_change": -2565, "cannibalization": 2649}], "forecast": {"Warszawa": {"historical_months": ["2025-03", "2025-04", "2025-05", "2025-06", "2025-07", "2025-08", "2025-09", "2025-10", "2025-11", "2025-12", "2026-01", "2026-02", "2026-03"], "historical_values": [921, 771, 814, 754, 828, 922, 698, 924, 1270, 876, 990, 999, 1121], "forecast_months": ["2026-04", "2026-05", "2026-06"], "forecast_values": [1287, 1068, 1119], "trend_slope": 23.6, "trend_direction": "up"}, "Wrocław": {"historical_months": ["2025-03", "2025-04", "2025-05", "2025-06", "2025-07", "2025-08", "2025-09", "2025-10", "2025-11", "2025-12", "2026-01", "2026-02", "2026-03"], "historical_values": [215, 225, 205, 180, 216, 241, 139, 274, 351, 231, 258, 333, 336], "forecast_months": ["2026-04", "2026-05", "2026-06"], "forecast_values": [378, 386, 344], "trend_slope": 10.63, "trend_direction": "up"}, "Katowice": {"historical_months": ["2025-03", "2025-04", "2025-05", "2025-06", "2025-07", "2025-08", "2025-09", "2025-10", "2025-11", "2025-12", "2026-01", "2026-02", "2026-03"], "historical_values": [170, 187, 151, 133, 192, 212, 136, 193, 315, 135, 210, 184, 249], "forecast_months": ["2026-04", "2026-05", "2026-06"], "forecast_values": [241, 262, 210], "trend_slope": 5.1, "trend_direction": "up"}, "Poznań": {"historical_months": ["2025-03", "2025-04", "2025-05", "2025-06", "2025-07", "2025-08", "2025-09", "2025-10", "2025-11", "2025-12", "2026-01", "2026-02", "2026-03"], "historical_values": [222, 202, 193, 178, 170, 204, 162, 249, 378, 208, 261, 271, 222], "forecast_months": ["2026-04", "2026-05", "2026-06"], "forecast_values": [322, 290, 274], "trend_slope": 6.42, "trend_direction": "up"}, "Lublin": {"historical_months": ["2025-03", "2025-04", "2025-05", "2025-06", "2025-10", "2025-11", "2026-02", "2026-03"], "historical_values": [67, 45, 41, 17, 40, 70, 25, 79], "forecast_months": ["2026-04", "2026-05", "2026-06"], "forecast_values": [81, 54, 49], "trend_slope": 1.12, "trend_direction": "up"}, "Trójmiasto": {"historical_months": ["2025-03", "2025-04", "2025-05", "2025-06", "2025-07", "2025-08", "2025-09", "2025-10", "2025-11", "2025-12", "2026-01", "2026-02", "2026-03"], "historical_values": [214, 167, 157, 253, 299, 323, 224, 340, 394, 236, 287, 246, 275], "forecast_months": ["2026-04", "2026-05", "2026-06"], "forecast_values": [316, 244, 227], "trend_slope": 7.9, "trend_direction": "up"}, "Szczecin": {"historical_months": ["2025-03", "2025-04", "2025-05", "2025-06", "2025-07", "2025-08", "2025-09", "2025-10", "2025-11", "2025-12", "2026-01", "2026-02", "2026-03"], "historical_values": [73, 40, 49, 47, 44, 70, 43, 51, 75, 43, 66, 57, 42], "forecast_months": ["2026-04", "2026-05", "2026-06"], "forecast_values": [73, 40, 49], "trend_slope": -0.01, "trend_direction": "down"}, "Kraków": {"historical_months": ["2025-03", "2025-04", "2025-05", "2025-06", "2025-07", "2025-08", "2025-09", "2025-10", "2025-11", "2025-12", "2026-01", "2026-02", "2026-03"], "historical_values": [265, 206, 243, 176, 192, 238, 167, 260, 325, 152, 192, 224, 206], "forecast_months": ["2026-04", "2026-05", "2026-06"], "forecast_values": [244, 190, 224], "trend_slope": -1.38, "trend_direction": "down"}, "Łódź": {"historical_months": ["2025-03", "2025-04", "2025-05", "2025-06", "2025-07", "2025-08", "2025-09", "2025-10", "2025-11", "2025-12", "2026-01", "2026-02", "2026-03"], "historical_values": [134, 99, 99, 105, 104, 110, 124, 152, 182, 104, 128, 134, 148], "forecast_months": ["2026-04", "2026-05", "2026-06"], "forecast_values": [185, 136, 135], "trend_slope": 3.13, "trend_direction": "up"}, "Praga": {"historical_months": ["2025-03", "2025-04", "2025-05", "2025-06", "2025-07", "2025-09", "2025-10", "2025-11"], "historical_values": [68, 57, 50, 51, 33, 52, 50, 65], "forecast_months": ["2025-12", "2026-01", "2026-02"], "forecast_values": [60, 50, 44], "trend_slope": -0.81, "trend_direction": "down"}}, "detail_table": [{"month": "2025-01", "pos": "Gdańsk", "total": 147, "done": 91, "canceled": 44, "absent": 5, "avg_lead": 1.4, "top_source": "website", "city_group": "Trójmiasto", "location_type": "ulica", "done_pct": 61.9, "canceled_pct": 29.9}, {"month": "2025-01", "pos": "Katowice", "total": 101, "done": 62, "canceled": 28, "absent": 3, "avg_lead": 2.1, "top_source": "website", "city_group": "Katowice", "location_type": "galeria", "done_pct": 61.4, "canceled_pct": 27.7}, {"month": "2025-01", "pos": "Kraków Pawia", "total": 66, "done": 40, "canceled": 18, "absent": 1, "avg_lead": 1.2, "top_source": "website", "city_group": "Kraków", "location_type": "ulica", "done_pct": 60.6, "canceled_pct": 27.3}, {"month": "2025-01", "pos": "Kraków Starowiślna", "total": 80, "done": 54, "canceled": 21, "absent": 4, "avg_lead": 1.2, "top_source": "website", "city_group": "Kraków", "location_type": "ulica", "done_pct": 67.5, "canceled_pct": 26.2}, {"month": "2025-01", "pos": "Lublin", "total": 33, "done": 16, "canceled": 9, "absent": 2, "avg_lead": 2.7, "top_source": "website", "city_group": "Lublin", "location_type": "ulica", "done_pct": 48.5, "canceled_pct": 27.3}, {"month": "2025-01", "pos": "Poznań", "total": 165, "done": 108, "canceled": 49, "absent": 1, "avg_lead": 2.0, "top_source": "website", "city_group": "Poznań", "location_type": "galeria", "done_pct": 65.5, "canceled_pct": 29.7}, {"month": "2025-01", "pos": "Praga", "total": 115, "done": 73, "canceled": 28, "absent": 6, "avg_lead": 1.7, "top_source": "website", "city_group": "Praga", "location_type": "ulica", "done_pct": 63.5, "canceled_pct": 24.3}, {"month": "2025-01", "pos": "Szczecin", "total": 20, "done": 10, "canceled": 6, "absent": 1, "avg_lead": 1.6, "top_source": "website", "city_group": "Szczecin", "location_type": "ulica", "done_pct": 50.0, "canceled_pct": 30.0}, {"month": "2025-01", "pos": "Warszawa Arkadia", "total": 213, "done": 137, "canceled": 59, "absent": 12, "avg_lead": 1.7, "top_source": "website", "city_group": "Warszawa", "location_type": "galeria", "done_pct": 64.3, "canceled_pct": 27.7}, {"month": "2025-01", "pos": "Warszawa Chmielna", "total": 184, "done": 105, "canceled": 68, "absent": 4, "avg_lead": 1.9, "top_source": "website", "city_group": "Warszawa", "location_type": "ulica", "done_pct": 57.1, "canceled_pct": 37.0}, {"month": "2025-01", "pos": "Warszawa Wola Park", "total": 79, "done": 50, "canceled": 20, "absent": 2, "avg_lead": 1.8, "top_source": "website", "city_group": "Warszawa", "location_type": "galeria", "done_pct": 63.3, "canceled_pct": 25.3}, {"month": "2025-01", "pos": "Wrocław Stawowa", "total": 175, "done": 101, "canceled": 56, "absent": 10, "avg_lead": 2.3, "top_source": "website", "city_group": "Wrocław", "location_type": "ulica", "done_pct": 57.7, "canceled_pct": 32.0}, {"month": "2025-01", "pos": "Łódź", "total": 48, "done": 26, "canceled": 18, "absent": 1, "avg_lead": 2.8, "top_source": "website", "city_group": "Łódź", "location_type": "ulica", "done_pct": 54.2, "canceled_pct": 37.5}, {"month": "2025-02", "pos": "Gdańsk", "total": 138, "done": 74, "canceled": 46, "absent": 5, "avg_lead": 1.9, "top_source": "website", "city_group": "Trójmiasto", "location_type": "ulica", "done_pct": 53.6, "canceled_pct": 33.3}, {"month": "2025-02", "pos": "Katowice", "total": 93, "done": 52, "canceled": 29, "absent": 2, "avg_lead": 1.3, "top_source": "website", "city_group": "Katowice", "location_type": "galeria", "done_pct": 55.9, "canceled_pct": 31.2}, {"month": "2025-02", "pos": "Kraków Pawia", "total": 80, "done": 43, "canceled": 28, "absent": 1, "avg_lead": 1.2, "top_source": "website", "city_group": "Kraków", "location_type": "ulica", "done_pct": 53.8, "canceled_pct": 35.0}, {"month": "2025-02", "pos": "Kraków Starowiślna", "total": 71, "done": 49, "canceled": 15, "absent": 1, "avg_lead": 2.0, "top_source": "website", "city_group": "Kraków", "location_type": "ulica", "done_pct": 69.0, "canceled_pct": 21.1}, {"month": "2025-02", "pos": "Lublin", "total": 26, "done": 15, "canceled": 6, "absent": 1, "avg_lead": 2.6, "top_source": "website", "city_group": "Lublin", "location_type": "ulica", "done_pct": 57.7, "canceled_pct": 23.1}, {"month": "2025-02", "pos": "Poznań", "total": 107, "done": 64, "canceled": 28, "absent": 5, "avg_lead": 1.9, "top_source": "website", "city_group": "Poznań", "location_type": "galeria", "done_pct": 59.8, "canceled_pct": 26.2}, {"month": "2025-02", "pos": "Praga", "total": 100, "done": 61, "canceled": 27, "absent": 8, "avg_lead": 2.0, "top_source": "website", "city_group": "Praga", "location_type": "ulica", "done_pct": 61.0, "canceled_pct": 27.0}, {"month": "2025-02", "pos": "Szczecin", "total": 37, "done": 16, "canceled": 17, "absent": 0, "avg_lead": 2.0, "top_source": "website", "city_group": "Szczecin", "location_type": "ulica", "done_pct": 43.2, "canceled_pct": 45.9}, {"month": "2025-02", "pos": "Warszawa Arkadia", "total": 182, "done": 95, "canceled": 66, "absent": 10, "avg_lead": 1.2, "top_source": "website", "city_group": "Warszawa", "location_type": "galeria", "done_pct": 52.2, "canceled_pct": 36.3}, {"month": "2025-02", "pos": "Warszawa Chmielna", "total": 173, "done": 99, "canceled": 53, "absent": 7, "avg_lead": 2.0, "top_source": "website", "city_group": "Warszawa", "location_type": "ulica", "done_pct": 57.2, "canceled_pct": 30.6}, {"month": "2025-02", "pos": "Warszawa Wola Park", "total": 54, "done": 32, "canceled": 13, "absent": 2, "avg_lead": 1.7, "top_source": "website", "city_group": "Warszawa", "location_type": "galeria", "done_pct": 59.3, "canceled_pct": 24.1}, {"month": "2025-02", "pos": "Wrocław Stawowa", "total": 144, "done": 87, "canceled": 39, "absent": 5, "avg_lead": 2.2, "top_source": "website", "city_group": "Wrocław", "location_type": "ulica", "done_pct": 60.4, "canceled_pct": 27.1}, {"month": "2025-02", "pos": "Łódź", "total": 50, "done": 34, "canceled": 9, "absent": 0, "avg_lead": 2.3, "top_source": "website", "city_group": "Łódź", "location_type": "ulica", "done_pct": 68.0, "canceled_pct": 18.0}, {"month": "2025-03", "pos": "Gdańsk", "total": 213, "done": 142, "canceled": 62, "absent": 10, "avg_lead": 1.7, "top_source": "website", "city_group": "Trójmiasto", "location_type": "ulica", "done_pct": 66.7, "canceled_pct": 29.1}, {"month": "2025-03", "pos": "Katowice", "total": 170, "done": 120, "canceled": 47, "absent": 3, "avg_lead": 1.1, "top_source": "website", "city_group": "Katowice", "location_type": "galeria", "done_pct": 70.6, "canceled_pct": 27.6}, {"month": "2025-03", "pos": "Kraków Pawia", "total": 125, "done": 91, "canceled": 27, "absent": 1, "avg_lead": 1.0, "top_source": "website", "city_group": "Kraków", "location_type": "ulica", "done_pct": 72.8, "canceled_pct": 21.6}, {"month": "2025-03", "pos": "Kraków Starowiślna", "total": 139, "done": 108, "canceled": 29, "absent": 3, "avg_lead": 0.9, "top_source": "website", "city_group": "Kraków", "location_type": "ulica", "done_pct": 77.7, "canceled_pct": 20.9}, {"month": "2025-03", "pos": "Lublin", "total": 67, "done": 46, "canceled": 20, "absent": 1, "avg_lead": 2.8, "top_source": "website", "city_group": "Lublin", "location_type": "ulica", "done_pct": 68.7, "canceled_pct": 29.9}, {"month": "2025-03", "pos": "Poznań", "total": 222, "done": 160, "canceled": 51, "absent": 11, "avg_lead": 1.1, "top_source": "website", "city_group": "Poznań", "location_type": "galeria", "done_pct": 72.1, "canceled_pct": 23.0}, {"month": "2025-03", "pos": "Praga", "total": 68, "done": 36, "canceled": 31, "absent": 1, "avg_lead": 5.1, "top_source": "showroom", "city_group": "Praga", "location_type": "ulica", "done_pct": 52.9, "canceled_pct": 45.6}, {"month": "2025-03", "pos": "Szczecin", "total": 72, "done": 44, "canceled": 25, "absent": 4, "avg_lead": 2.3, "top_source": "website", "city_group": "Szczecin", "location_type": "ulica", "done_pct": 61.1, "canceled_pct": 34.7}, {"month": "2025-03", "pos": "Warszawa Arkadia", "total": 299, "done": 205, "canceled": 79, "absent": 17, "avg_lead": 1.0, "top_source": "website", "city_group": "Warszawa", "location_type": "galeria", "done_pct": 68.6, "canceled_pct": 26.4}, {"month": "2025-03", "pos": "Warszawa Chmielna", "total": 345, "done": 235, "canceled": 99, "absent": 15, "avg_lead": 1.3, "top_source": "website", "city_group": "Warszawa", "location_type": "ulica", "done_pct": 68.1, "canceled_pct": 28.7}, {"month": "2025-03", "pos": "Warszawa Targowa", "total": 135, "done": 91, "canceled": 37, "absent": 8, "avg_lead": 1.1, "top_source": "website", "city_group": "Warszawa", "location_type": "ulica", "done_pct": 67.4, "canceled_pct": 27.4}, {"month": "2025-03", "pos": "Warszawa Wola Park", "total": 133, "done": 83, "canceled": 43, "absent": 3, "avg_lead": 1.9, "top_source": "website", "city_group": "Warszawa", "location_type": "galeria", "done_pct": 62.4, "canceled_pct": 32.3}, {"month": "2025-03", "pos": "Wrocław Stawowa", "total": 215, "done": 156, "canceled": 43, "absent": 16, "avg_lead": 2.1, "top_source": "website", "city_group": "Wrocław", "location_type": "ulica", "done_pct": 72.6, "canceled_pct": 20.0}, {"month": "2025-03", "pos": "Łódź", "total": 134, "done": 95, "canceled": 39, "absent": 0, "avg_lead": 1.0, "top_source": "website", "city_group": "Łódź", "location_type": "ulica", "done_pct": 70.9, "canceled_pct": 29.1}, {"month": "2025-04", "pos": "Gdańsk", "total": 167, "done": 113, "canceled": 44, "absent": 10, "avg_lead": 1.0, "top_source": "website", "city_group": "Trójmiasto", "location_type": "ulica", "done_pct": 67.7, "canceled_pct": 26.3}, {"month": "2025-04", "pos": "Katowice", "total": 185, "done": 122, "canceled": 55, "absent": 10, "avg_lead": 1.8, "top_source": "website", "city_group": "Katowice", "location_type": "galeria", "done_pct": 65.9, "canceled_pct": 29.7}, {"month": "2025-04", "pos": "Kraków Pawia", "total": 96, "done": 67, "canceled": 28, "absent": 0, "avg_lead": 0.9, "top_source": "website", "city_group": "Kraków", "location_type": "ulica", "done_pct": 69.8, "canceled_pct": 29.2}, {"month": "2025-04", "pos": "Kraków Starowiślna", "total": 109, "done": 72, "canceled": 31, "absent": 6, "avg_lead": 1.0, "top_source": "website", "city_group": "Kraków", "location_type": "ulica", "done_pct": 66.1, "canceled_pct": 28.4}, {"month": "2025-04", "pos": "Lublin", "total": 45, "done": 27, "canceled": 15, "absent": 1, "avg_lead": 1.8, "top_source": "showroom", "city_group": "Lublin", "location_type": "ulica", "done_pct": 60.0, "canceled_pct": 33.3}, {"month": "2025-04", "pos": "Poznań", "total": 202, "done": 143, "canceled": 44, "absent": 15, "avg_lead": 1.2, "top_source": "website", "city_group": "Poznań", "location_type": "galeria", "done_pct": 70.8, "canceled_pct": 21.8}, {"month": "2025-04", "pos": "Praga", "total": 54, "done": 40, "canceled": 13, "absent": 4, "avg_lead": 1.3, "top_source": "showroom", "city_group": "Praga", "location_type": "ulica", "done_pct": 74.1, "canceled_pct": 24.1}, {"month": "2025-04", "pos": "Szczecin", "total": 40, "done": 25, "canceled": 13, "absent": 2, "avg_lead": 1.2, "top_source": "website", "city_group": "Szczecin", "location_type": "ulica", "done_pct": 62.5, "canceled_pct": 32.5}, {"month": "2025-04", "pos": "Warszawa Arkadia", "total": 262, "done": 185, "canceled": 65, "absent": 12, "avg_lead": 0.9, "top_source": "website", "city_group": "Warszawa", "location_type": "galeria", "done_pct": 70.6, "canceled_pct": 24.8}, {"month": "2025-04", "pos": "Warszawa Chmielna", "total": 312, "done": 200, "canceled": 108, "absent": 6, "avg_lead": 1.1, "top_source": "website", "city_group": "Warszawa", "location_type": "ulica", "done_pct": 64.1, "canceled_pct": 34.6}, {"month": "2025-04", "pos": "Warszawa Targowa", "total": 95, "done": 69, "canceled": 21, "absent": 5, "avg_lead": 1.7, "top_source": "showroom", "city_group": "Warszawa", "location_type": "ulica", "done_pct": 72.6, "canceled_pct": 22.1}, {"month": "2025-04", "pos": "Warszawa Wola Park", "total": 99, "done": 72, "canceled": 25, "absent": 2, "avg_lead": 1.0, "top_source": "website", "city_group": "Warszawa", "location_type": "galeria", "done_pct": 72.7, "canceled_pct": 25.3}, {"month": "2025-04", "pos": "Wrocław Stawowa", "total": 225, "done": 141, "canceled": 70, "absent": 14, "avg_lead": 2.2, "top_source": "website", "city_group": "Wrocław", "location_type": "ulica", "done_pct": 62.7, "canceled_pct": 31.1}, {"month": "2025-04", "pos": "Łódź", "total": 99, "done": 68, "canceled": 28, "absent": 3, "avg_lead": 1.0, "top_source": "showroom", "city_group": "Łódź", "location_type": "ulica", "done_pct": 68.7, "canceled_pct": 28.3}, {"month": "2025-05", "pos": "Gdańsk", "total": 157, "done": 104, "canceled": 45, "absent": 8, "avg_lead": 1.3, "top_source": "website", "city_group": "Trójmiasto", "location_type": "ulica", "done_pct": 66.2, "canceled_pct": 28.7}, {"month": "2025-05", "pos": "Katowice", "total": 151, "done": 104, "canceled": 38, "absent": 9, "avg_lead": 1.7, "top_source": "showroom", "city_group": "Katowice", "location_type": "galeria", "done_pct": 68.9, "canceled_pct": 25.2}, {"month": "2025-05", "pos": "Kraków Pawia", "total": 119, "done": 78, "canceled": 40, "absent": 0, "avg_lead": 1.8, "top_source": "website", "city_group": "Kraków", "location_type": "ulica", "done_pct": 65.5, "canceled_pct": 33.6}, {"month": "2025-05", "pos": "Kraków Starowiślna", "total": 123, "done": 86, "canceled": 34, "absent": 4, "avg_lead": 0.8, "top_source": "website", "city_group": "Kraków", "location_type": "ulica", "done_pct": 69.9, "canceled_pct": 27.6}, {"month": "2025-05", "pos": "Lublin", "total": 41, "done": 29, "canceled": 11, "absent": 0, "avg_lead": 2.8, "top_source": "showroom", "city_group": "Lublin", "location_type": "ulica", "done_pct": 70.7, "canceled_pct": 26.8}, {"month": "2025-05", "pos": "Poznań", "total": 193, "done": 144, "canceled": 41, "absent": 8, "avg_lead": 0.9, "top_source": "website", "city_group": "Poznań", "location_type": "galeria", "done_pct": 74.6, "canceled_pct": 21.2}, {"month": "2025-05", "pos": "Praga", "total": 50, "done": 31, "canceled": 18, "absent": 1, "avg_lead": 0.8, "top_source": "showroom", "city_group": "Praga", "location_type": "ulica", "done_pct": 62.0, "canceled_pct": 36.0}, {"month": "2025-05", "pos": "Szczecin", "total": 49, "done": 40, "canceled": 9, "absent": 0, "avg_lead": 1.8, "top_source": "website", "city_group": "Szczecin", "location_type": "ulica", "done_pct": 81.6, "canceled_pct": 18.4}, {"month": "2025-05", "pos": "Warszawa Arkadia", "total": 254, "done": 158, "canceled": 80, "absent": 17, "avg_lead": 1.1, "top_source": "website", "city_group": "Warszawa", "location_type": "galeria", "done_pct": 62.2, "canceled_pct": 31.5}, {"month": "2025-05", "pos": "Warszawa Chmielna", "total": 333, "done": 220, "canceled": 109, "absent": 6, "avg_lead": 0.9, "top_source": "website", "city_group": "Warszawa", "location_type": "ulica", "done_pct": 66.1, "canceled_pct": 32.7}, {"month": "2025-05", "pos": "Warszawa Targowa", "total": 90, "done": 66, "canceled": 21, "absent": 4, "avg_lead": 1.0, "top_source": "website", "city_group": "Warszawa", "location_type": "ulica", "done_pct": 73.3, "canceled_pct": 23.3}, {"month": "2025-05", "pos": "Warszawa Wola Park", "total": 130, "done": 72, "canceled": 49, "absent": 8, "avg_lead": 1.0, "top_source": "website", "city_group": "Warszawa", "location_type": "galeria", "done_pct": 55.4, "canceled_pct": 37.7}, {"month": "2025-05", "pos": "Wrocław Stawowa", "total": 205, "done": 147, "canceled": 45, "absent": 13, "avg_lead": 1.7, "top_source": "website", "city_group": "Wrocław", "location_type": "ulica", "done_pct": 71.7, "canceled_pct": 22.0}, {"month": "2025-05", "pos": "Łódź", "total": 98, "done": 76, "canceled": 19, "absent": 4, "avg_lead": 0.8, "top_source": "showroom", "city_group": "Łódź", "location_type": "ulica", "done_pct": 77.6, "canceled_pct": 19.4}, {"month": "2025-06", "pos": "Gdańsk", "total": 149, "done": 96, "canceled": 48, "absent": 6, "avg_lead": 1.1, "top_source": "website", "city_group": "Trójmiasto", "location_type": "ulica", "done_pct": 64.4, "canceled_pct": 32.2}, {"month": "2025-06", "pos": "Gdynia Riviera", "total": 103, "done": 67, "canceled": 30, "absent": 4, "avg_lead": 1.9, "top_source": "website", "city_group": "Trójmiasto", "location_type": "galeria", "done_pct": 65.0, "canceled_pct": 29.1}, {"month": "2025-06", "pos": "Katowice", "total": 133, "done": 94, "canceled": 31, "absent": 8, "avg_lead": 1.3, "top_source": "website", "city_group": "Katowice", "location_type": "galeria", "done_pct": 70.7, "canceled_pct": 23.3}, {"month": "2025-06", "pos": "Kraków Pawia", "total": 70, "done": 50, "canceled": 18, "absent": 1, "avg_lead": 1.1, "top_source": "website", "city_group": "Kraków", "location_type": "ulica", "done_pct": 71.4, "canceled_pct": 25.7}, {"month": "2025-06", "pos": "Kraków Starowiślna", "total": 103, "done": 76, "canceled": 27, "absent": 2, "avg_lead": 0.9, "top_source": "website", "city_group": "Kraków", "location_type": "ulica", "done_pct": 73.8, "canceled_pct": 26.2}, {"month": "2025-06", "pos": "Lublin", "total": 17, "done": 11, "canceled": 6, "absent": 0, "avg_lead": 2.0, "top_source": "website", "city_group": "Lublin", "location_type": "ulica", "done_pct": 64.7, "canceled_pct": 35.3}, {"month": "2025-06", "pos": "Poznań", "total": 178, "done": 130, "canceled": 38, "absent": 9, "avg_lead": 1.1, "top_source": "website", "city_group": "Poznań", "location_type": "galeria", "done_pct": 73.0, "canceled_pct": 21.3}, {"month": "2025-06", "pos": "Praga", "total": 40, "done": 33, "canceled": 13, "absent": 5, "avg_lead": 0.9, "top_source": "showroom", "city_group": "Praga", "location_type": "ulica", "done_pct": 82.5, "canceled_pct": 32.5}, {"month": "2025-06", "pos": "Szczecin", "total": 47, "done": 36, "canceled": 9, "absent": 2, "avg_lead": 1.2, "top_source": "website", "city_group": "Szczecin", "location_type": "ulica", "done_pct": 76.6, "canceled_pct": 19.1}, {"month": "2025-06", "pos": "Warszawa Arkadia", "total": 237, "done": 156, "canceled": 71, "absent": 12, "avg_lead": 1.0, "top_source": "website", "city_group": "Warszawa", "location_type": "galeria", "done_pct": 65.8, "canceled_pct": 30.0}, {"month": "2025-06", "pos": "Warszawa Chmielna", "total": 298, "done": 197, "canceled": 96, "absent": 8, "avg_lead": 1.2, "top_source": "website", "city_group": "Warszawa", "location_type": "ulica", "done_pct": 66.1, "canceled_pct": 32.2}, {"month": "2025-06", "pos": "Warszawa Targowa", "total": 113, "done": 71, "canceled": 40, "absent": 2, "avg_lead": 1.2, "top_source": "website", "city_group": "Warszawa", "location_type": "ulica", "done_pct": 62.8, "canceled_pct": 35.4}, {"month": "2025-06", "pos": "Warszawa Wola Park", "total": 101, "done": 60, "canceled": 29, "absent": 6, "avg_lead": 1.0, "top_source": "website", "city_group": "Warszawa", "location_type": "galeria", "done_pct": 59.4, "canceled_pct": 28.7}, {"month": "2025-06", "pos": "Wrocław Stawowa", "total": 180, "done": 125, "canceled": 44, "absent": 11, "avg_lead": 1.0, "top_source": "website", "city_group": "Wrocław", "location_type": "ulica", "done_pct": 69.4, "canceled_pct": 24.4}, {"month": "2025-06", "pos": "Łódź", "total": 105, "done": 78, "canceled": 20, "absent": 7, "avg_lead": 0.1, "top_source": "showroom", "city_group": "Łódź", "location_type": "ulica", "done_pct": 74.3, "canceled_pct": 19.0}, {"month": "2025-07", "pos": "Gdańsk", "total": 121, "done": 83, "canceled": 35, "absent": 4, "avg_lead": 1.0, "top_source": "website", "city_group": "Trójmiasto", "location_type": "ulica", "done_pct": 68.6, "canceled_pct": 28.9}, {"month": "2025-07", "pos": "Gdynia Riviera", "total": 177, "done": 121, "canceled": 46, "absent": 10, "avg_lead": 1.3, "top_source": "website", "city_group": "Trójmiasto", "location_type": "galeria", "done_pct": 68.4, "canceled_pct": 26.0}, {"month": "2025-07", "pos": "Katowice", "total": 192, "done": 121, "canceled": 64, "absent": 7, "avg_lead": 1.8, "top_source": "website", "city_group": "Katowice", "location_type": "galeria", "done_pct": 63.0, "canceled_pct": 33.3}, {"month": "2025-07", "pos": "Kraków Pawia", "total": 75, "done": 50, "canceled": 23, "absent": 0, "avg_lead": 1.0, "top_source": "website", "city_group": "Kraków", "location_type": "ulica", "done_pct": 66.7, "canceled_pct": 30.7}, {"month": "2025-07", "pos": "Kraków Starowiślna", "total": 117, "done": 87, "canceled": 27, "absent": 3, "avg_lead": 0.6, "top_source": "website", "city_group": "Kraków", "location_type": "ulica", "done_pct": 74.4, "canceled_pct": 23.1}, {"month": "2025-07", "pos": "Poznań", "total": 170, "done": 126, "canceled": 38, "absent": 6, "avg_lead": 1.0, "top_source": "website", "city_group": "Poznań", "location_type": "galeria", "done_pct": 74.1, "canceled_pct": 22.4}, {"month": "2025-07", "pos": "Praga", "total": 33, "done": 31, "canceled": 2, "absent": 0, "avg_lead": 0.0, "top_source": "showroom", "city_group": "Praga", "location_type": "ulica", "done_pct": 93.9, "canceled_pct": 6.1}, {"month": "2025-07", "pos": "Szczecin", "total": 44, "done": 26, "canceled": 15, "absent": 3, "avg_lead": 2.6, "top_source": "showroom", "city_group": "Szczecin", "location_type": "ulica", "done_pct": 59.1, "canceled_pct": 34.1}, {"month": "2025-07", "pos": "Warszawa Arkadia", "total": 293, "done": 189, "canceled": 86, "absent": 18, "avg_lead": 1.0, "top_source": "website", "city_group": "Warszawa", "location_type": "galeria", "done_pct": 64.5, "canceled_pct": 29.4}, {"month": "2025-07", "pos": "Warszawa Chmielna", "total": 280, "done": 180, "canceled": 93, "absent": 7, "avg_lead": 1.2, "top_source": "website", "city_group": "Warszawa", "location_type": "ulica", "done_pct": 64.3, "canceled_pct": 33.2}, {"month": "2025-07", "pos": "Warszawa Targowa", "total": 123, "done": 75, "canceled": 45, "absent": 3, "avg_lead": 1.9, "top_source": "website", "city_group": "Warszawa", "location_type": "ulica", "done_pct": 61.0, "canceled_pct": 36.6}, {"month": "2025-07", "pos": "Warszawa Wola Park", "total": 132, "done": 88, "canceled": 42, "absent": 2, "avg_lead": 1.0, "top_source": "website", "city_group": "Warszawa", "location_type": "galeria", "done_pct": 66.7, "canceled_pct": 31.8}, {"month": "2025-07", "pos": "Wrocław Stawowa", "total": 216, "done": 144, "canceled": 58, "absent": 14, "avg_lead": 0.9, "top_source": "website", "city_group": "Wrocław", "location_type": "ulica", "done_pct": 66.7, "canceled_pct": 26.9}, {"month": "2025-07", "pos": "Łódź", "total": 103, "done": 86, "canceled": 18, "absent": 0, "avg_lead": 0.6, "top_source": "website", "city_group": "Łódź", "location_type": "ulica", "done_pct": 83.5, "canceled_pct": 17.5}, {"month": "2025-08", "pos": "Gdańsk", "total": 141, "done": 106, "canceled": 26, "absent": 9, "avg_lead": 1.2, "top_source": "website", "city_group": "Trójmiasto", "location_type": "ulica", "done_pct": 75.2, "canceled_pct": 18.4}, {"month": "2025-08", "pos": "Gdynia Riviera", "total": 181, "done": 123, "canceled": 50, "absent": 9, "avg_lead": 0.9, "top_source": "showroom", "city_group": "Trójmiasto", "location_type": "galeria", "done_pct": 68.0, "canceled_pct": 27.6}, {"month": "2025-08", "pos": "Katowice", "total": 212, "done": 156, "canceled": 52, "absent": 4, "avg_lead": 1.1, "top_source": "website", "city_group": "Katowice", "location_type": "galeria", "done_pct": 73.6, "canceled_pct": 24.5}, {"month": "2025-08", "pos": "Kraków Pawia", "total": 94, "done": 69, "canceled": 22, "absent": 1, "avg_lead": 1.9, "top_source": "website", "city_group": "Kraków", "location_type": "ulica", "done_pct": 73.4, "canceled_pct": 23.4}, {"month": "2025-08", "pos": "Kraków Starowiślna", "total": 144, "done": 103, "canceled": 38, "absent": 3, "avg_lead": 0.9, "top_source": "website", "city_group": "Kraków", "location_type": "ulica", "done_pct": 71.5, "canceled_pct": 26.4}, {"month": "2025-08", "pos": "Poznań", "total": 204, "done": 139, "canceled": 56, "absent": 9, "avg_lead": 1.0, "top_source": "website", "city_group": "Poznań", "location_type": "galeria", "done_pct": 68.1, "canceled_pct": 27.5}, {"month": "2025-08", "pos": "Szczecin", "total": 69, "done": 50, "canceled": 19, "absent": 1, "avg_lead": 1.6, "top_source": "showroom", "city_group": "Szczecin", "location_type": "ulica", "done_pct": 72.5, "canceled_pct": 27.5}, {"month": "2025-08", "pos": "Warszawa Arkadia", "total": 299, "done": 208, "canceled": 78, "absent": 17, "avg_lead": 1.0, "top_source": "website", "city_group": "Warszawa", "location_type": "galeria", "done_pct": 69.6, "canceled_pct": 26.1}, {"month": "2025-08", "pos": "Warszawa Chmielna", "total": 345, "done": 230, "canceled": 105, "absent": 10, "avg_lead": 1.7, "top_source": "website", "city_group": "Warszawa", "location_type": "ulica", "done_pct": 66.7, "canceled_pct": 30.4}, {"month": "2025-08", "pos": "Warszawa Targowa", "total": 116, "done": 74, "canceled": 39, "absent": 3, "avg_lead": 2.0, "top_source": "website", "city_group": "Warszawa", "location_type": "ulica", "done_pct": 63.8, "canceled_pct": 33.6}, {"month": "2025-08", "pos": "Warszawa Wola Park", "total": 157, "done": 100, "canceled": 48, "absent": 8, "avg_lead": 1.7, "top_source": "website", "city_group": "Warszawa", "location_type": "galeria", "done_pct": 63.7, "canceled_pct": 30.6}, {"month": "2025-08", "pos": "Wrocław Stawowa", "total": 241, "done": 161, "canceled": 63, "absent": 17, "avg_lead": 2.0, "top_source": "website", "city_group": "Wrocław", "location_type": "ulica", "done_pct": 66.8, "canceled_pct": 26.1}, {"month": "2025-08", "pos": "Łódź", "total": 109, "done": 86, "canceled": 17, "absent": 7, "avg_lead": 0.3, "top_source": "showroom", "city_group": "Łódź", "location_type": "ulica", "done_pct": 78.9, "canceled_pct": 15.6}, {"month": "2025-09", "pos": "Gdańsk", "total": 102, "done": 81, "canceled": 17, "absent": 4, "avg_lead": 0.9, "top_source": "website", "city_group": "Trójmiasto", "location_type": "ulica", "done_pct": 79.4, "canceled_pct": 16.7}, {"month": "2025-09", "pos": "Gdynia Riviera", "total": 122, "done": 82, "canceled": 37, "absent": 3, "avg_lead": 1.2, "top_source": "showroom", "city_group": "Trójmiasto", "location_type": "galeria", "done_pct": 67.2, "canceled_pct": 30.3}, {"month": "2025-09", "pos": "Katowice", "total": 136, "done": 94, "canceled": 38, "absent": 4, "avg_lead": 1.3, "top_source": "website", "city_group": "Katowice", "location_type": "galeria", "done_pct": 69.1, "canceled_pct": 27.9}, {"month": "2025-09", "pos": "Kraków Pawia", "total": 85, "done": 56, "canceled": 24, "absent": 3, "avg_lead": 1.0, "top_source": "website", "city_group": "Kraków", "location_type": "ulica", "done_pct": 65.9, "canceled_pct": 28.2}, {"month": "2025-09", "pos": "Kraków Starowiślna", "total": 82, "done": 54, "canceled": 26, "absent": 2, "avg_lead": 1.0, "top_source": "website", "city_group": "Kraków", "location_type": "ulica", "done_pct": 65.9, "canceled_pct": 31.7}, {"month": "2025-09", "pos": "Poznań", "total": 162, "done": 134, "canceled": 24, "absent": 4, "avg_lead": 1.2, "top_source": "website", "city_group": "Poznań", "location_type": "galeria", "done_pct": 82.7, "canceled_pct": 14.8}, {"month": "2025-09", "pos": "Praga", "total": 49, "done": 41, "canceled": 9, "absent": 2, "avg_lead": 1.0, "top_source": "showroom", "city_group": "Praga", "location_type": "ulica", "done_pct": 83.7, "canceled_pct": 18.4}, {"month": "2025-09", "pos": "Szczecin", "total": 43, "done": 25, "canceled": 17, "absent": 1, "avg_lead": 1.7, "top_source": "showroom", "city_group": "Szczecin", "location_type": "ulica", "done_pct": 58.1, "canceled_pct": 39.5}, {"month": "2025-09", "pos": "Warszawa Arkadia", "total": 231, "done": 157, "canceled": 60, "absent": 13, "avg_lead": 0.4, "top_source": "website", "city_group": "Warszawa", "location_type": "galeria", "done_pct": 68.0, "canceled_pct": 26.0}, {"month": "2025-09", "pos": "Warszawa Chmielna", "total": 261, "done": 173, "canceled": 76, "absent": 14, "avg_lead": 1.1, "top_source": "website", "city_group": "Warszawa", "location_type": "ulica", "done_pct": 66.3, "canceled_pct": 29.1}, {"month": "2025-09", "pos": "Warszawa Targowa", "total": 95, "done": 71, "canceled": 21, "absent": 4, "avg_lead": 1.0, "top_source": "showroom", "city_group": "Warszawa", "location_type": "ulica", "done_pct": 74.7, "canceled_pct": 22.1}, {"month": "2025-09", "pos": "Warszawa Wola Park", "total": 107, "done": 70, "canceled": 28, "absent": 7, "avg_lead": 1.0, "top_source": "website", "city_group": "Warszawa", "location_type": "galeria", "done_pct": 65.4, "canceled_pct": 26.2}, {"month": "2025-09", "pos": "Wrocław Stawowa", "total": 123, "done": 91, "canceled": 22, "absent": 10, "avg_lead": 0.9, "top_source": "website", "city_group": "Wrocław", "location_type": "ulica", "done_pct": 74.0, "canceled_pct": 17.9}, {"month": "2025-09", "pos": "Wrocław Wroclavia", "total": 16, "done": 1, "canceled": 14, "absent": 0, "avg_lead": 8.2, "top_source": "website", "city_group": "Wrocław", "location_type": "galeria", "done_pct": 6.2, "canceled_pct": 87.5}, {"month": "2025-09", "pos": "Łódź", "total": 124, "done": 93, "canceled": 25, "absent": 6, "avg_lead": 0.2, "top_source": "showroom", "city_group": "Łódź", "location_type": "ulica", "done_pct": 75.0, "canceled_pct": 20.2}, {"month": "2025-10", "pos": "Gdańsk", "total": 172, "done": 116, "canceled": 49, "absent": 8, "avg_lead": 0.9, "top_source": "website", "city_group": "Trójmiasto", "location_type": "ulica", "done_pct": 67.4, "canceled_pct": 28.5}, {"month": "2025-10", "pos": "Gdynia Riviera", "total": 167, "done": 111, "canceled": 49, "absent": 7, "avg_lead": 1.0, "top_source": "showroom", "city_group": "Trójmiasto", "location_type": "galeria", "done_pct": 66.5, "canceled_pct": 29.3}, {"month": "2025-10", "pos": "Katowice", "total": 191, "done": 124, "canceled": 62, "absent": 7, "avg_lead": 1.8, "top_source": "website", "city_group": "Katowice", "location_type": "galeria", "done_pct": 64.9, "canceled_pct": 32.5}, {"month": "2025-10", "pos": "Kraków Pawia", "total": 153, "done": 113, "canceled": 33, "absent": 3, "avg_lead": 1.3, "top_source": "website", "city_group": "Kraków", "location_type": "ulica", "done_pct": 73.9, "canceled_pct": 21.6}, {"month": "2025-10", "pos": "Kraków Starowiślna", "total": 106, "done": 74, "canceled": 27, "absent": 5, "avg_lead": 2.0, "top_source": "website", "city_group": "Kraków", "location_type": "ulica", "done_pct": 69.8, "canceled_pct": 25.5}, {"month": "2025-10", "pos": "Lublin", "total": 40, "done": 25, "canceled": 11, "absent": 3, "avg_lead": 4.0, "top_source": "website", "city_group": "Lublin", "location_type": "ulica", "done_pct": 62.5, "canceled_pct": 27.5}, {"month": "2025-10", "pos": "Poznań", "total": 249, "done": 171, "canceled": 64, "absent": 14, "avg_lead": 1.1, "top_source": "website", "city_group": "Poznań", "location_type": "galeria", "done_pct": 68.7, "canceled_pct": 25.7}, {"month": "2025-10", "pos": "Praga", "total": 50, "done": 34, "canceled": 16, "absent": 0, "avg_lead": 4.0, "top_source": "website", "city_group": "Praga", "location_type": "ulica", "done_pct": 68.0, "canceled_pct": 32.0}, {"month": "2025-10", "pos": "Szczecin", "total": 51, "done": 37, "canceled": 11, "absent": 3, "avg_lead": 2.0, "top_source": "website", "city_group": "Szczecin", "location_type": "ulica", "done_pct": 72.5, "canceled_pct": 21.6}, {"month": "2025-10", "pos": "Warszawa Arkadia", "total": 308, "done": 201, "canceled": 77, "absent": 24, "avg_lead": 0.9, "top_source": "website", "city_group": "Warszawa", "location_type": "galeria", "done_pct": 65.3, "canceled_pct": 25.0}, {"month": "2025-10", "pos": "Warszawa Chmielna", "total": 341, "done": 200, "canceled": 128, "absent": 15, "avg_lead": 1.1, "top_source": "website", "city_group": "Warszawa", "location_type": "ulica", "done_pct": 58.7, "canceled_pct": 37.5}, {"month": "2025-10", "pos": "Warszawa Targowa", "total": 115, "done": 76, "canceled": 33, "absent": 6, "avg_lead": 0.9, "top_source": "website", "city_group": "Warszawa", "location_type": "ulica", "done_pct": 66.1, "canceled_pct": 28.7}, {"month": "2025-10", "pos": "Warszawa Wola Park", "total": 153, "done": 103, "canceled": 42, "absent": 7, "avg_lead": 1.0, "top_source": "showroom", "city_group": "Warszawa", "location_type": "galeria", "done_pct": 67.3, "canceled_pct": 27.5}, {"month": "2025-10", "pos": "Wrocław Wroclavia", "total": 274, "done": 173, "canceled": 85, "absent": 16, "avg_lead": 3.0, "top_source": "website", "city_group": "Wrocław", "location_type": "galeria", "done_pct": 63.1, "canceled_pct": 31.0}, {"month": "2025-10", "pos": "Łódź", "total": 152, "done": 121, "canceled": 30, "absent": 1, "avg_lead": 0.1, "top_source": "website", "city_group": "Łódź", "location_type": "ulica", "done_pct": 79.6, "canceled_pct": 19.7}, {"month": "2025-11", "pos": "Gdańsk", "total": 221, "done": 159, "canceled": 50, "absent": 12, "avg_lead": 1.6, "top_source": "website", "city_group": "Trójmiasto", "location_type": "ulica", "done_pct": 71.9, "canceled_pct": 22.6}, {"month": "2025-11", "pos": "Gdynia Riviera", "total": 172, "done": 113, "canceled": 53, "absent": 7, "avg_lead": 1.2, "top_source": "website", "city_group": "Trójmiasto", "location_type": "galeria", "done_pct": 65.7, "canceled_pct": 30.8}, {"month": "2025-11", "pos": "Katowice", "total": 315, "done": 195, "canceled": 110, "absent": 10, "avg_lead": 2.0, "top_source": "website", "city_group": "Katowice", "location_type": "galeria", "done_pct": 61.9, "canceled_pct": 34.9}, {"month": "2025-11", "pos": "Kraków Pawia", "total": 154, "done": 117, "canceled": 33, "absent": 1, "avg_lead": 0.9, "top_source": "website", "city_group": "Kraków", "location_type": "ulica", "done_pct": 76.0, "canceled_pct": 21.4}, {"month": "2025-11", "pos": "Kraków Starowiślna", "total": 171, "done": 116, "canceled": 47, "absent": 8, "avg_lead": 1.9, "top_source": "website", "city_group": "Kraków", "location_type": "ulica", "done_pct": 67.8, "canceled_pct": 27.5}, {"month": "2025-11", "pos": "Lublin", "total": 69, "done": 44, "canceled": 22, "absent": 0, "avg_lead": 2.7, "top_source": "website", "city_group": "Lublin", "location_type": "ulica", "done_pct": 63.8, "canceled_pct": 31.9}, {"month": "2025-11", "pos": "Poznań", "total": 378, "done": 256, "canceled": 111, "absent": 11, "avg_lead": 2.0, "top_source": "website", "city_group": "Poznań", "location_type": "galeria", "done_pct": 67.7, "canceled_pct": 29.4}, {"month": "2025-11", "pos": "Praga", "total": 64, "done": 42, "canceled": 19, "absent": 4, "avg_lead": 1.0, "top_source": "website", "city_group": "Praga", "location_type": "ulica", "done_pct": 65.6, "canceled_pct": 29.7}, {"month": "2025-11", "pos": "Szczecin", "total": 74, "done": 46, "canceled": 19, "absent": 10, "avg_lead": 1.7, "top_source": "website", "city_group": "Szczecin", "location_type": "ulica", "done_pct": 62.2, "canceled_pct": 25.7}, {"month": "2025-11", "pos": "Warszawa Arkadia", "total": 394, "done": 241, "canceled": 129, "absent": 28, "avg_lead": 1.0, "top_source": "website", "city_group": "Warszawa", "location_type": "galeria", "done_pct": 61.2, "canceled_pct": 32.7}, {"month": "2025-11", "pos": "Warszawa Chmielna", "total": 466, "done": 284, "canceled": 169, "absent": 14, "avg_lead": 2.0, "top_source": "website", "city_group": "Warszawa", "location_type": "ulica", "done_pct": 60.9, "canceled_pct": 36.3}, {"month": "2025-11", "pos": "Warszawa Targowa", "total": 180, "done": 128, "canceled": 49, "absent": 4, "avg_lead": 1.1, "top_source": "website", "city_group": "Warszawa", "location_type": "ulica", "done_pct": 71.1, "canceled_pct": 27.2}, {"month": "2025-11", "pos": "Warszawa Wola Park", "total": 220, "done": 147, "canceled": 66, "absent": 10, "avg_lead": 1.1, "top_source": "website", "city_group": "Warszawa", "location_type": "galeria", "done_pct": 66.8, "canceled_pct": 30.0}, {"month": "2025-11", "pos": "Wrocław Wroclavia", "total": 351, "done": 241, "canceled": 77, "absent": 33, "avg_lead": 2.1, "top_source": "website", "city_group": "Wrocław", "location_type": "galeria", "done_pct": 68.7, "canceled_pct": 21.9}, {"month": "2025-11", "pos": "Łódź", "total": 179, "done": 131, "canceled": 39, "absent": 12, "avg_lead": 1.0, "top_source": "website", "city_group": "Łódź", "location_type": "ulica", "done_pct": 73.2, "canceled_pct": 21.8}, {"month": "2025-12", "pos": "Gdańsk", "total": 120, "done": 78, "canceled": 39, "absent": 3, "avg_lead": 1.0, "top_source": "website", "city_group": "Trójmiasto", "location_type": "ulica", "done_pct": 65.0, "canceled_pct": 32.5}, {"month": "2025-12", "pos": "Gdynia Riviera", "total": 115, "done": 91, "canceled": 22, "absent": 2, "avg_lead": 1.0, "top_source": "showroom", "city_group": "Trójmiasto", "location_type": "galeria", "done_pct": 79.1, "canceled_pct": 19.1}, {"month": "2025-12", "pos": "Katowice", "total": 135, "done": 69, "canceled": 60, "absent": 6, "avg_lead": 2.1, "top_source": "website", "city_group": "Katowice", "location_type": "galeria", "done_pct": 51.1, "canceled_pct": 44.4}, {"month": "2025-12", "pos": "Kraków Pawia", "total": 66, "done": 45, "canceled": 19, "absent": 2, "avg_lead": 0.8, "top_source": "website", "city_group": "Kraków", "location_type": "ulica", "done_pct": 68.2, "canceled_pct": 28.8}, {"month": "2025-12", "pos": "Kraków Starowiślna", "total": 85, "done": 56, "canceled": 24, "absent": 5, "avg_lead": 1.9, "top_source": "website", "city_group": "Kraków", "location_type": "ulica", "done_pct": 65.9, "canceled_pct": 28.2}, {"month": "2025-12", "pos": "Poznań", "total": 207, "done": 146, "canceled": 51, "absent": 11, "avg_lead": 1.9, "top_source": "website", "city_group": "Poznań", "location_type": "galeria", "done_pct": 70.5, "canceled_pct": 24.6}, {"month": "2025-12", "pos": "Szczecin", "total": 43, "done": 28, "canceled": 13, "absent": 2, "avg_lead": 2.9, "top_source": "showroom", "city_group": "Szczecin", "location_type": "ulica", "done_pct": 65.1, "canceled_pct": 30.2}, {"month": "2025-12", "pos": "Warszawa Arkadia", "total": 278, "done": 176, "canceled": 84, "absent": 18, "avg_lead": 1.0, "top_source": "website", "city_group": "Warszawa", "location_type": "galeria", "done_pct": 63.3, "canceled_pct": 30.2}, {"month": "2025-12", "pos": "Warszawa Chmielna", "total": 335, "done": 199, "canceled": 124, "absent": 13, "avg_lead": 1.8, "top_source": "website", "city_group": "Warszawa", "location_type": "ulica", "done_pct": 59.4, "canceled_pct": 37.0}, {"month": "2025-12", "pos": "Warszawa Targowa", "total": 112, "done": 77, "canceled": 33, "absent": 2, "avg_lead": 0.9, "top_source": "website", "city_group": "Warszawa", "location_type": "ulica", "done_pct": 68.8, "canceled_pct": 29.5}, {"month": "2025-12", "pos": "Warszawa Wola Park", "total": 147, "done": 97, "canceled": 48, "absent": 2, "avg_lead": 1.4, "top_source": "showroom", "city_group": "Warszawa", "location_type": "galeria", "done_pct": 66.0, "canceled_pct": 32.7}, {"month": "2025-12", "pos": "Wrocław Wroclavia", "total": 228, "done": 147, "canceled": 63, "absent": 21, "avg_lead": 1.0, "top_source": "website", "city_group": "Wrocław", "location_type": "galeria", "done_pct": 64.5, "canceled_pct": 27.6}, {"month": "2025-12", "pos": "Łódź", "total": 104, "done": 76, "canceled": 21, "absent": 7, "avg_lead": 0.9, "top_source": "showroom", "city_group": "Łódź", "location_type": "ulica", "done_pct": 73.1, "canceled_pct": 20.2}, {"month": "2026-01", "pos": "Gdańsk", "total": 140, "done": 95, "canceled": 36, "absent": 9, "avg_lead": 1.0, "top_source": "website", "city_group": "Trójmiasto", "location_type": "ulica", "done_pct": 67.9, "canceled_pct": 25.7}, {"month": "2026-01", "pos": "Gdynia Riviera", "total": 147, "done": 107, "canceled": 36, "absent": 4, "avg_lead": 0.9, "top_source": "showroom", "city_group": "Trójmiasto", "location_type": "galeria", "done_pct": 72.8, "canceled_pct": 24.5}, {"month": "2026-01", "pos": "Katowice", "total": 209, "done": 135, "canceled": 72, "absent": 3, "avg_lead": 1.2, "top_source": "website", "city_group": "Katowice", "location_type": "galeria", "done_pct": 64.6, "canceled_pct": 34.4}, {"month": "2026-01", "pos": "Kraków Pawia", "total": 79, "done": 59, "canceled": 19, "absent": 1, "avg_lead": 1.0, "top_source": "website", "city_group": "Kraków", "location_type": "ulica", "done_pct": 74.7, "canceled_pct": 24.1}, {"month": "2026-01", "pos": "Kraków Starowiślna", "total": 113, "done": 81, "canceled": 31, "absent": 1, "avg_lead": 1.2, "top_source": "website", "city_group": "Kraków", "location_type": "ulica", "done_pct": 71.7, "canceled_pct": 27.4}, {"month": "2026-01", "pos": "Poznań", "total": 261, "done": 175, "canceled": 72, "absent": 14, "avg_lead": 1.4, "top_source": "website", "city_group": "Poznań", "location_type": "galeria", "done_pct": 67.0, "canceled_pct": 27.6}, {"month": "2026-01", "pos": "Szczecin", "total": 65, "done": 46, "canceled": 20, "absent": 0, "avg_lead": 1.9, "top_source": "website", "city_group": "Szczecin", "location_type": "ulica", "done_pct": 70.8, "canceled_pct": 30.8}, {"month": "2026-01", "pos": "Warszawa Arkadia", "total": 351, "done": 236, "canceled": 94, "absent": 22, "avg_lead": 1.2, "top_source": "website", "city_group": "Warszawa", "location_type": "galeria", "done_pct": 67.2, "canceled_pct": 26.8}, {"month": "2026-01", "pos": "Warszawa Chmielna", "total": 351, "done": 227, "canceled": 113, "absent": 11, "avg_lead": 1.7, "top_source": "website", "city_group": "Warszawa", "location_type": "ulica", "done_pct": 64.7, "canceled_pct": 32.2}, {"month": "2026-01", "pos": "Warszawa Targowa", "total": 121, "done": 70, "canceled": 52, "absent": 0, "avg_lead": 2.1, "top_source": "website", "city_group": "Warszawa", "location_type": "ulica", "done_pct": 57.9, "canceled_pct": 43.0}, {"month": "2026-01", "pos": "Warszawa Wola Park", "total": 165, "done": 96, "canceled": 59, "absent": 6, "avg_lead": 1.0, "top_source": "website", "city_group": "Warszawa", "location_type": "galeria", "done_pct": 58.2, "canceled_pct": 35.8}, {"month": "2026-01", "pos": "Wrocław Magnolia", "total": 13, "done": 9, "canceled": 3, "absent": 1, "avg_lead": 6.9, "top_source": "website", "city_group": "Wrocław", "location_type": "galeria", "done_pct": 69.2, "canceled_pct": 23.1}, {"month": "2026-01", "pos": "Wrocław Wroclavia", "total": 245, "done": 159, "canceled": 69, "absent": 17, "avg_lead": 1.0, "top_source": "website", "city_group": "Wrocław", "location_type": "galeria", "done_pct": 64.9, "canceled_pct": 28.2}, {"month": "2026-01", "pos": "Łódź", "total": 128, "done": 83, "canceled": 35, "absent": 10, "avg_lead": 0.9, "top_source": "website", "city_group": "Łódź", "location_type": "ulica", "done_pct": 64.8, "canceled_pct": 27.3}, {"month": "2026-02", "pos": "Gdańsk", "total": 117, "done": 74, "canceled": 34, "absent": 9, "avg_lead": 1.1, "top_source": "website", "city_group": "Trójmiasto", "location_type": "ulica", "done_pct": 63.2, "canceled_pct": 29.1}, {"month": "2026-02", "pos": "Gdynia Riviera", "total": 129, "done": 103, "canceled": 26, "absent": 0, "avg_lead": 0.2, "top_source": "showroom", "city_group": "Trójmiasto", "location_type": "galeria", "done_pct": 79.8, "canceled_pct": 20.2}, {"month": "2026-02", "pos": "Katowice", "total": 184, "done": 117, "canceled": 60, "absent": 7, "avg_lead": 1.0, "top_source": "website", "city_group": "Katowice", "location_type": "galeria", "done_pct": 63.6, "canceled_pct": 32.6}, {"month": "2026-02", "pos": "Kraków Pawia", "total": 116, "done": 91, "canceled": 22, "absent": 2, "avg_lead": 0.8, "top_source": "website", "city_group": "Kraków", "location_type": "ulica", "done_pct": 78.4, "canceled_pct": 19.0}, {"month": "2026-02", "pos": "Kraków Starowiślna", "total": 108, "done": 69, "canceled": 33, "absent": 6, "avg_lead": 1.4, "top_source": "website", "city_group": "Kraków", "location_type": "ulica", "done_pct": 63.9, "canceled_pct": 30.6}, {"month": "2026-02", "pos": "Lublin", "total": 25, "done": 11, "canceled": 11, "absent": 1, "avg_lead": 8.0, "top_source": "showroom", "city_group": "Lublin", "location_type": "ulica", "done_pct": 44.0, "canceled_pct": 44.0}, {"month": "2026-02", "pos": "Poznań", "total": 271, "done": 187, "canceled": 68, "absent": 16, "avg_lead": 1.5, "top_source": "website", "city_group": "Poznań", "location_type": "galeria", "done_pct": 69.0, "canceled_pct": 25.1}, {"month": "2026-02", "pos": "Szczecin", "total": 55, "done": 35, "canceled": 18, "absent": 4, "avg_lead": 2.0, "top_source": "website", "city_group": "Szczecin", "location_type": "ulica", "done_pct": 63.6, "canceled_pct": 32.7}, {"month": "2026-02", "pos": "Warszawa Arkadia", "total": 327, "done": 212, "canceled": 100, "absent": 16, "avg_lead": 1.1, "top_source": "website", "city_group": "Warszawa", "location_type": "galeria", "done_pct": 64.8, "canceled_pct": 30.6}, {"month": "2026-02", "pos": "Warszawa Chmielna", "total": 352, "done": 226, "canceled": 120, "absent": 11, "avg_lead": 1.8, "top_source": "website", "city_group": "Warszawa", "location_type": "ulica", "done_pct": 64.2, "canceled_pct": 34.1}, {"month": "2026-02", "pos": "Warszawa Targowa", "total": 141, "done": 90, "canceled": 38, "absent": 13, "avg_lead": 2.9, "top_source": "website", "city_group": "Warszawa", "location_type": "ulica", "done_pct": 63.8, "canceled_pct": 27.0}, {"month": "2026-02", "pos": "Warszawa Wola Park", "total": 171, "done": 116, "canceled": 53, "absent": 4, "avg_lead": 1.2, "top_source": "website", "city_group": "Warszawa", "location_type": "galeria", "done_pct": 67.8, "canceled_pct": 31.0}, {"month": "2026-02", "pos": "Wrocław Magnolia", "total": 103, "done": 71, "canceled": 23, "absent": 9, "avg_lead": 1.0, "top_source": "website", "city_group": "Wrocław", "location_type": "galeria", "done_pct": 68.9, "canceled_pct": 22.3}, {"month": "2026-02", "pos": "Wrocław Wroclavia", "total": 229, "done": 156, "canceled": 52, "absent": 22, "avg_lead": 1.1, "top_source": "website", "city_group": "Wrocław", "location_type": "galeria", "done_pct": 68.1, "canceled_pct": 22.7}, {"month": "2026-02", "pos": "Łódź", "total": 133, "done": 88, "canceled": 41, "absent": 5, "avg_lead": 1.3, "top_source": "showroom", "city_group": "Łódź", "location_type": "ulica", "done_pct": 66.2, "canceled_pct": 30.8}, {"month": "2026-03", "pos": "Gdańsk", "total": 146, "done": 109, "canceled": 29, "absent": 3, "avg_lead": 1.0, "top_source": "website", "city_group": "Trójmiasto", "location_type": "ulica", "done_pct": 74.7, "canceled_pct": 19.9}, {"month": "2026-03", "pos": "Gdynia Riviera", "total": 128, "done": 94, "canceled": 30, "absent": 1, "avg_lead": 0.4, "top_source": "showroom", "city_group": "Trójmiasto", "location_type": "galeria", "done_pct": 73.4, "canceled_pct": 23.4}, {"month": "2026-03", "pos": "Katowice", "total": 248, "done": 170, "canceled": 62, "absent": 9, "avg_lead": 1.1, "top_source": "website", "city_group": "Katowice", "location_type": "galeria", "done_pct": 68.5, "canceled_pct": 25.0}, {"month": "2026-03", "pos": "Kraków Pawia", "total": 93, "done": 74, "canceled": 14, "absent": 1, "avg_lead": 0.9, "top_source": "website", "city_group": "Kraków", "location_type": "ulica", "done_pct": 79.6, "canceled_pct": 15.1}, {"month": "2026-03", "pos": "Kraków Starowiślna", "total": 111, "done": 80, "canceled": 24, "absent": 5, "avg_lead": 1.3, "top_source": "website", "city_group": "Kraków", "location_type": "ulica", "done_pct": 72.1, "canceled_pct": 21.6}, {"month": "2026-03", "pos": "Lublin", "total": 79, "done": 50, "canceled": 18, "absent": 5, "avg_lead": 1.6, "top_source": "website", "city_group": "Lublin", "location_type": "ulica", "done_pct": 63.3, "canceled_pct": 22.8}, {"month": "2026-03", "pos": "Poznań", "total": 222, "done": 145, "canceled": 58, "absent": 7, "avg_lead": 1.2, "top_source": "website", "city_group": "Poznań", "location_type": "galeria", "done_pct": 65.3, "canceled_pct": 26.1}, {"month": "2026-03", "pos": "Szczecin", "total": 42, "done": 21, "canceled": 16, "absent": 3, "avg_lead": 2.1, "top_source": "website", "city_group": "Szczecin", "location_type": "ulica", "done_pct": 50.0, "canceled_pct": 38.1}, {"month": "2026-03", "pos": "Warszawa Arkadia", "total": 329, "done": 212, "canceled": 93, "absent": 20, "avg_lead": 1.0, "top_source": "website", "city_group": "Warszawa", "location_type": "galeria", "done_pct": 64.4, "canceled_pct": 28.3}, {"month": "2026-03", "pos": "Warszawa Chmielna", "total": 386, "done": 234, "canceled": 119, "absent": 21, "avg_lead": 2.0, "top_source": "showroom", "city_group": "Warszawa", "location_type": "ulica", "done_pct": 60.6, "canceled_pct": 30.8}, {"month": "2026-03", "pos": "Warszawa Mokotów", "total": 84, "done": 53, "canceled": 23, "absent": 7, "avg_lead": 1.2, "top_source": "website", "city_group": "Warszawa", "location_type": "galeria", "done_pct": 63.1, "canceled_pct": 27.4}, {"month": "2026-03", "pos": "Warszawa Targowa", "total": 174, "done": 112, "canceled": 55, "absent": 6, "avg_lead": 2.1, "top_source": "website", "city_group": "Warszawa", "location_type": "ulica", "done_pct": 64.4, "canceled_pct": 31.6}, {"month": "2026-03", "pos": "Warszawa Wola Park", "total": 140, "done": 99, "canceled": 34, "absent": 5, "avg_lead": 1.7, "top_source": "showroom", "city_group": "Warszawa", "location_type": "galeria", "done_pct": 70.7, "canceled_pct": 24.3}, {"month": "2026-03", "pos": "Wrocław Magnolia", "total": 139, "done": 91, "canceled": 35, "absent": 11, "avg_lead": 0.9, "top_source": "showroom", "city_group": "Wrocław", "location_type": "galeria", "done_pct": 65.5, "canceled_pct": 25.2}, {"month": "2026-03", "pos": "Wrocław Wroclavia", "total": 196, "done": 126, "canceled": 55, "absent": 6, "avg_lead": 1.7, "top_source": "website", "city_group": "Wrocław", "location_type": "galeria", "done_pct": 64.3, "canceled_pct": 28.1}, {"month": "2026-03", "pos": "Łódź", "total": 148, "done": 105, "canceled": 38, "absent": 2, "avg_lead": 0.9, "top_source": "showroom", "city_group": "Łódź", "location_type": "ulica", "done_pct": 70.9, "canceled_pct": 25.7}], "meta": {"generated": "2026-04-03 15:12", "total_records": 32555, "date_range": "2025-01-01 — 2026-03-31", "new_salon_dates": {"Warszawa Targowa": "2025-03-01", "Gdynia Riviera": "2025-06-18", "Wrocław Wroclavia": "2025-09-22", "Wrocław Magnolia": "2026-01-22", "Warszawa Mokotów": "2026-03-21"}, "note_jan_feb": "Dane Jan-Feb 2025 zawierają TYLKO zapisy website (brak showroom/helpline)"}};
+
+// === COLORS ===
+const C = {
+  cyan: '#06b6d4', violet: '#8b5cf6', amber: '#f59e0b', red: '#ef4444',
+  emerald: '#10b981', blue: '#3b82f6', pink: '#ec4899', orange: '#f97316',
+  slate: '#64748b', teal: '#14b8a6',
+};
+const PALETTE = [C.cyan, C.violet, C.amber, C.emerald, C.blue, C.pink, C.orange, C.red, C.teal, C.slate];
+
+// === CHART DEFAULTS ===
+Chart.defaults.color = '#94a3b8';
+Chart.defaults.borderColor = 'rgba(255,255,255,0.06)';
+Chart.defaults.font.family = "'Inter', -apple-system, sans-serif";
+Chart.defaults.font.size = 11;
+Chart.defaults.plugins.legend.labels.usePointStyle = true;
+Chart.defaults.plugins.legend.labels.padding = 16;
+Chart.defaults.animation.duration = 800;
+Chart.defaults.animation.easing = 'easeOutQuart';
+
+const charts = {};
+
+// === INIT ===
+function init() {
+  document.getElementById('meta-range').textContent = D.meta.date_range;
+  document.getElementById('meta-total').textContent = D.meta.total_records.toLocaleString('pl');
+  document.getElementById('meta-gen').textContent = D.meta.generated;
+  document.getElementById('data-note').textContent = D.meta.note_jan_feb;
+
+  // Populate filter dropdowns
+  const cities = [...new Set(D.detail_table.map(r => r.city_group))].sort();
+  const salons = [...new Set(D.detail_table.map(r => r.pos))].sort();
+  const fCity = document.getElementById('f-city');
+  const fSalon = document.getElementById('f-salon');
+  cities.forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c; fCity.appendChild(o); });
+  salons.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; fSalon.appendChild(o); });
+
+  renderAll();
+}
+
+function getFilters() {
+  return {
+    period: document.getElementById('f-period').value,
+    city: document.getElementById('f-city').value,
+    salon: document.getElementById('f-salon').value,
+    source: document.getElementById('f-source').value,
+    status: document.getElementById('f-status').value,
+  };
+}
+
+function filterMonths(months) {
+  const f = getFilters();
+  if (f.period === 'all') return months;
+  const n = f.period === '6m' ? 6 : 3;
+  return months.slice(-n);
+}
+
+function applyFilters() {
+  // Destroy all charts
+  Object.values(charts).forEach(c => { if (c && c.destroy) c.destroy(); });
+  Object.keys(charts).forEach(k => delete charts[k]);
+  renderAll();
+}
+
+function renderAll() {
+  renderKPIs();
+  renderMonthlyVol();
+  renderStatusStack();
+  renderSourceMix();
+  renderDoneCancelTrend();
+  renderCityMonthly();
+  renderCityChange();
+  renderNewSalonImpact();
+  renderTypeTrend();
+  renderTypeQuality();
+  renderSourceHourHeatmap();
+  renderSourceSalon();
+  renderLeadDist();
+  renderLeadSalon();
+  renderLeadTrend();
+  renderCancelSalon();
+  renderCancelMethod();
+  renderCancelAdvance();
+  renderDowHourHeatmap();
+  renderVisitDist();
+  renderVisitInterval();
+  renderCancelChain();
+  renderRebookGap();
+  renderRebookSalon();
+  renderForecast();
+  renderDetailTable();
+}
+
+// === KPIs ===
+function renderKPIs() {
+  const k = D.kpi;
+  const row = document.getElementById('kpi-row');
+  row.innerHTML = `
+    <div class="kpi-card"><div class="kpi-label">Zapisy Total</div><div class="kpi-value glow" style="color:${C.cyan}">${k.total.toLocaleString('pl')}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Zrealizowane</div><div class="kpi-value" style="color:${C.emerald}">${k.done_pct}%</div><div class="kpi-change">${k.done.toLocaleString('pl')} badan</div></div>
+    <div class="kpi-card"><div class="kpi-label">Anulowane</div><div class="kpi-value" style="color:${C.amber}">${k.canceled_pct}%</div><div class="kpi-change">${k.canceled.toLocaleString('pl')} anulacji</div></div>
+    <div class="kpi-card"><div class="kpi-label">Nieobecni</div><div class="kpi-value" style="color:${C.red}">${k.absent_pct}%</div><div class="kpi-change">${k.absent.toLocaleString('pl')} absent</div></div>
+    <div class="kpi-card"><div class="kpi-label">Mediana Lead Time</div><div class="kpi-value" style="color:${C.violet}">${k.avg_lead_days}</div><div class="kpi-change">dni do badania</div></div>
+    <div class="kpi-card"><div class="kpi-label">Unikalni Klienci</div><div class="kpi-value" style="color:${C.blue}">${k.unique_clients.toLocaleString('pl')}</div></div>
+  `;
+}
+
+// === CHART BUILDERS ===
+function makeChart(id, type, data, options = {}) {
+  const ctx = document.getElementById(id);
+  if (!ctx) return null;
+  const chart = new Chart(ctx, { type, data, options: {
+    responsive: true, maintainAspectRatio: false,
+    interaction: { mode: 'index', intersect: false },
+    plugins: { legend: { position: 'top' }, ...options.plugins },
+    scales: options.scales || {},
+    ...options.extra,
+  } });
+  charts[id] = chart;
+  return chart;
+}
+
+// 1.1 Monthly Volume
+function renderMonthlyVol() {
+  const m = D.monthly;
+  const months = filterMonths(m.map(r => r.month));
+  const filtered = m.filter(r => months.includes(r.month));
+
+  const annotations = {};
+  Object.entries(D.meta.new_salon_dates).forEach(([name, date], i) => {
+    const monthKey = date.substring(0, 7);
+    if (months.includes(monthKey)) {
+      annotations['line' + i] = {
+        type: 'line', xMin: monthKey, xMax: monthKey,
+        borderColor: 'rgba(139,92,246,0.5)', borderWidth: 2, borderDash: [4, 4],
+        label: { display: true, content: name.split(' ').slice(-1)[0], position: 'start', font: { size: 9 }, color: C.violet }
+      };
+    }
+  });
+
+  makeChart('ch-monthly-vol', 'line', {
+    labels: filtered.map(r => r.month),
+    datasets: [
+      { label: 'Total', data: filtered.map(r => r.total), borderColor: C.cyan, borderWidth: 2.5, tension: 0.3, pointRadius: 4, pointHoverRadius: 7 },
+      { label: 'Website only', data: filtered.map(r => r.website_only), borderColor: C.violet, borderWidth: 2, tension: 0.3, borderDash: [5,5], pointRadius: 3 },
+      { label: 'Done', data: filtered.map(r => r.done), borderColor: C.emerald, borderWidth: 2, tension: 0.3, pointRadius: 3 },
+    ]
+  }, { scales: { y: { beginAtZero: true } } });
+}
+
+// 1.2 Status Stack
+function renderStatusStack() {
+  const m = D.monthly;
+  const months = filterMonths(m.map(r => r.month));
+  const filtered = m.filter(r => months.includes(r.month));
+  makeChart('ch-status-stack', 'bar', {
+    labels: filtered.map(r => r.month),
+    datasets: [
+      { label: 'Done', data: filtered.map(r => r.done), backgroundColor: C.emerald + 'cc', borderRadius: 3 },
+      { label: 'Canceled', data: filtered.map(r => r.canceled), backgroundColor: C.amber + 'cc', borderRadius: 3 },
+      { label: 'Absent', data: filtered.map(r => r.absent), backgroundColor: C.red + 'cc', borderRadius: 3 },
+      { label: 'Planned', data: filtered.map(r => r.planned), backgroundColor: C.blue + 'cc', borderRadius: 3 },
+    ]
+  }, { scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } } });
+}
+
+// 1.3 Source Mix
+function renderSourceMix() {
+  const m = D.monthly.filter(r => r.month >= '2025-03');
+  const months = filterMonths(m.map(r => r.month));
+  const filtered = m.filter(r => months.includes(r.month));
+  makeChart('ch-source-mix', 'bar', {
+    labels: filtered.map(r => r.month),
+    datasets: [
+      { label: 'Website', data: filtered.map(r => r.website), backgroundColor: C.cyan + 'cc', borderRadius: 3 },
+      { label: 'Showroom', data: filtered.map(r => r.showroom), backgroundColor: C.violet + 'cc', borderRadius: 3 },
+      { label: 'Helpline', data: filtered.map(r => r.helpline), backgroundColor: C.amber + 'cc', borderRadius: 3 },
+    ]
+  }, { scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } } });
+}
+
+// 1.4 Done vs Cancel Trend
+function renderDoneCancelTrend() {
+  const m = D.monthly;
+  const months = filterMonths(m.map(r => r.month));
+  const filtered = m.filter(r => months.includes(r.month));
+  makeChart('ch-done-cancel-trend', 'line', {
+    labels: filtered.map(r => r.month),
+    datasets: [
+      { label: '% Done', data: filtered.map(r => (r.done / r.total * 100).toFixed(1)), borderColor: C.emerald, borderWidth: 2.5, tension: 0.3, pointRadius: 4 },
+      { label: '% Canceled', data: filtered.map(r => (r.canceled / r.total * 100).toFixed(1)), borderColor: C.red, borderWidth: 2.5, tension: 0.3, pointRadius: 4 },
+      { label: '% Absent', data: filtered.map(r => (r.absent / r.total * 100).toFixed(1)), borderColor: C.amber, borderWidth: 2, tension: 0.3, pointRadius: 3 },
+    ]
+  }, { scales: { y: { beginAtZero: true, max: 100, ticks: { callback: v => v + '%' } } } });
+}
+
+// 2.1 City Monthly
+function renderCityMonthly() {
+  const d = D.monthly_by_city;
+  const months = filterMonths(d.months);
+  const startIdx = d.months.indexOf(months[0]);
+  const datasets = Object.entries(d.cities).map(([city, vals], i) => ({
+    label: city,
+    data: vals.slice(startIdx, startIdx + months.length),
+    borderColor: PALETTE[i % PALETTE.length],
+    borderWidth: 2, tension: 0.3, pointRadius: 3,
+  }));
+  makeChart('ch-city-monthly', 'line', { labels: months, datasets }, { scales: { y: { beginAtZero: true } } });
+}
+
+// 2.2 City Change
+function renderCityChange() {
+  const d = D.monthly_by_city;
+  const months = d.months;
+  const n = months.length;
+  if (n < 6) return;
+  const last3 = months.slice(-3);
+  const prev3 = months.slice(-6, -3);
+
+  const changes = [];
+  Object.entries(d.cities).forEach(([city, vals]) => {
+    const l3i = months.indexOf(last3[0]);
+    const p3i = months.indexOf(prev3[0]);
+    const last3sum = vals.slice(l3i, l3i + 3).reduce((a, b) => a + b, 0);
+    const prev3sum = vals.slice(p3i, p3i + 3).reduce((a, b) => a + b, 0);
+    changes.push({ city, change: last3sum - prev3sum, pct: prev3sum > 0 ? ((last3sum - prev3sum) / prev3sum * 100).toFixed(1) : 0 });
+  });
+  changes.sort((a, b) => b.change - a.change);
+
+  makeChart('ch-city-change', 'bar', {
+    labels: changes.map(c => c.city),
+    datasets: [{ label: 'Zmiana netto', data: changes.map(c => c.change),
+      backgroundColor: changes.map(c => c.change >= 0 ? C.emerald + 'cc' : C.red + 'cc'), borderRadius: 4 }]
+  }, {
+    scales: { y: { beginAtZero: false } },
+    plugins: { tooltip: { callbacks: { label: ctx => `${ctx.raw > 0 ? '+' : ''}${ctx.raw} (${changes[ctx.dataIndex].pct}%)` } } }
+  });
+}
+
+// 2.3 New Salon Impact
+function renderNewSalonImpact() {
+  const impacts = D.new_salon_impact;
+  if (!impacts.length) return;
+  makeChart('ch-new-salon-impact', 'bar', {
+    labels: impacts.map(d => d.salon.split(' ').slice(-1)[0]),
+    datasets: [
+      { label: 'Istniejace PRZED', data: impacts.map(d => d.existing_before), backgroundColor: C.blue + 'cc', borderRadius: 3 },
+      { label: 'Istniejace PO', data: impacts.map(d => d.existing_after), backgroundColor: C.cyan + 'cc', borderRadius: 3 },
+      { label: 'Nowy salon', data: impacts.map(d => d.new_salon_volume), backgroundColor: C.violet + 'cc', borderRadius: 3 },
+    ]
+  }, { scales: { y: { beginAtZero: true } },
+    plugins: { tooltip: { callbacks: { afterBody: items => {
+      const i = items[0].dataIndex;
+      const d = impacts[i];
+      return `Netto: ${d.net_change > 0 ? '+' : ''}${d.net_change} | Kanibalizacja: ${d.cannibalization}`;
+    } } } }
+  });
+}
+
+// 3.1 Type Trend
+function renderTypeTrend() {
+  const d = D.type_monthly;
+  const galeria = d.filter(r => r.location_type === 'galeria');
+  const ulica = d.filter(r => r.location_type === 'ulica');
+  const months = filterMonths([...new Set(d.map(r => r.month))].sort());
+
+  const gByMonth = {};
+  const uByMonth = {};
+  galeria.forEach(r => { gByMonth[r.month] = (gByMonth[r.month] || 0) + r.total; });
+  ulica.forEach(r => { uByMonth[r.month] = (uByMonth[r.month] || 0) + r.total; });
+
+  makeChart('ch-type-trend', 'line', {
+    labels: months,
+    datasets: [
+      { label: 'Galerie', data: months.map(m => gByMonth[m] || 0), borderColor: C.cyan, borderWidth: 2.5, tension: 0.3, pointRadius: 4, fill: true, backgroundColor: C.cyan + '15' },
+      { label: 'Ulica/standalone', data: months.map(m => uByMonth[m] || 0), borderColor: C.violet, borderWidth: 2.5, tension: 0.3, pointRadius: 4, fill: true, backgroundColor: C.violet + '15' },
+    ]
+  }, { scales: { y: { beginAtZero: true } } });
+}
+
+// 3.2 Type Quality
+function renderTypeQuality() {
+  const d = D.type_monthly;
+  const calc = (type) => {
+    const rows = d.filter(r => r.location_type === type);
+    const total = rows.reduce((s, r) => s + r.total, 0);
+    const done = rows.reduce((s, r) => s + r.done, 0);
+    const canceled = rows.reduce((s, r) => s + r.canceled, 0);
+    const absent = rows.reduce((s, r) => s + r.absent, 0);
+    return { done: (done/total*100).toFixed(1), canceled: (canceled/total*100).toFixed(1), absent: (absent/total*100).toFixed(1) };
+  };
+  const g = calc('galeria');
+  const u = calc('ulica');
+  makeChart('ch-type-quality', 'bar', {
+    labels: ['Realizacja %', 'Anulacja %', 'Absencja %'],
+    datasets: [
+      { label: 'Galerie', data: [g.done, g.canceled, g.absent], backgroundColor: C.cyan + 'cc', borderRadius: 4 },
+      { label: 'Ulica', data: [u.done, u.canceled, u.absent], backgroundColor: C.violet + 'cc', borderRadius: 4 },
+    ]
+  }, { scales: { y: { beginAtZero: true, max: 100 } } });
+}
+
+// 4.1 Source x Hour Heatmap
+function renderSourceHourHeatmap() {
+  const d = D.hour_source_heatmap;
+  const sources = Object.keys(d);
+  const hours = Array.from({length: 17}, (_, i) => i + 7); // 7-23
+  const container = document.getElementById('heatmap-source-hour');
+
+  let maxVal = 0;
+  sources.forEach(s => hours.forEach(h => { maxVal = Math.max(maxVal, d[s]?.[h] || 0); }));
+
+  let html = `<div class="heatmap" style="grid-template-columns: 80px repeat(${hours.length}, 1fr);">`;
+  // Header
+  html += '<div class="heatmap-label"></div>';
+  hours.forEach(h => { html += `<div class="heatmap-label">${h}:00</div>`; });
+  // Rows
+  sources.forEach(s => {
+    html += `<div class="heatmap-label" style="text-transform:capitalize">${s}</div>`;
+    hours.forEach(h => {
+      const val = d[s]?.[h] || 0;
+      const intensity = val / maxVal;
+      const color = s === 'website' ? C.cyan : s === 'showroom' ? C.violet : C.amber;
+      html += `<div class="heatmap-cell" style="background:${color}${Math.round(intensity * 200 + 20).toString(16).padStart(2,'0')}" title="${s} ${h}:00 — ${val} zapisow">${val || ''}</div>`;
+    });
+  });
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+// 4.2 Source per Salon
+function renderSourceSalon() {
+  const d = D.source_per_salon;
+  makeChart('ch-source-salon', 'bar', {
+    labels: d.salons,
+    datasets: [
+      { label: 'Website', data: d.website, backgroundColor: C.cyan + 'cc' },
+      { label: 'Showroom', data: d.showroom, backgroundColor: C.violet + 'cc' },
+      { label: 'Helpline', data: d.helpline, backgroundColor: C.amber + 'cc' },
+    ]
+  }, { scales: { x: { stacked: true }, y: { stacked: true } }, extra: { indexAxis: 'y' } });
+}
+
+// 5.1 Lead Time Distribution
+function renderLeadDist() {
+  const d = D.lead_time_dist;
+  makeChart('ch-lead-dist', 'bar', {
+    labels: d.bins.map(b => b + 'd'),
+    datasets: [
+      { label: 'Website', data: d.website, backgroundColor: C.cyan + '99', borderRadius: 2 },
+      { label: 'Showroom', data: d.showroom, backgroundColor: C.violet + '99', borderRadius: 2 },
+      { label: 'Helpline', data: d.helpline, backgroundColor: C.amber + '99', borderRadius: 2 },
+    ]
+  }, { scales: { y: { beginAtZero: true } } });
+}
+
+// 5.2 Lead Time per Salon
+function renderLeadSalon() {
+  const d = D.lead_time_salon;
+  makeChart('ch-lead-salon', 'bar', {
+    labels: d.salons,
+    datasets: [{ label: 'Mediana dni', data: d.values, backgroundColor: PALETTE.map(c => c + 'cc'), borderRadius: 4 }]
+  }, { extra: { indexAxis: 'y' }, plugins: { legend: { display: false } } });
+}
+
+// 5.3 Lead Time Trend
+function renderLeadTrend() {
+  const d = D.lead_time_monthly;
+  const months = filterMonths(d.months);
+  const startIdx = d.months.indexOf(months[0]);
+  makeChart('ch-lead-trend', 'line', {
+    labels: months,
+    datasets: [{ label: 'Mediana lead time (dni)', data: d.values.slice(startIdx, startIdx + months.length), borderColor: C.violet, borderWidth: 2.5, tension: 0.3, pointRadius: 5, fill: true, backgroundColor: C.violet + '15' }]
+  }, { scales: { y: { beginAtZero: true } } });
+}
+
+// 6.1 Cancel Rate per Salon
+function renderCancelSalon() {
+  const d = D.cancel_rate_salon;
+  const avgRate = d.rates.reduce((a, b) => a + b, 0) / d.rates.length;
+  makeChart('ch-cancel-salon', 'bar', {
+    labels: d.salons,
+    datasets: [
+      { label: '% Anulacji', data: d.rates, backgroundColor: d.rates.map(r => r > avgRate ? C.red + 'cc' : C.amber + 'cc'), borderRadius: 4 },
+    ]
+  }, {
+    extra: { indexAxis: 'y' },
+    plugins: { legend: { display: false },
+      annotation: { annotations: { avgLine: { type: 'line', xMin: avgRate, xMax: avgRate, borderColor: C.cyan, borderWidth: 2, borderDash: [4,4], label: { display: true, content: 'Srednia ' + avgRate.toFixed(1) + '%', position: 'start', font: { size: 10 } } } } }
+    }
+  });
+}
+
+// 6.2 Cancel Method
+function renderCancelMethod() {
+  const d = D.cancel_source;
+  makeChart('ch-cancel-method', 'doughnut', {
+    labels: d.labels,
+    datasets: [{ data: d.values, backgroundColor: [C.cyan + 'cc', C.violet + 'cc', C.amber + 'cc', C.emerald + 'cc', C.pink + 'cc'], borderColor: 'transparent', borderWidth: 0 }]
+  }, { extra: { cutout: '55%' } });
+}
+
+// 6.3 Cancel Advance
+function renderCancelAdvance() {
+  const d = D.cancel_advance_dist;
+  makeChart('ch-cancel-advance', 'bar', {
+    labels: d.bins,
+    datasets: [{ label: 'Liczba anulacji', data: d.values, backgroundColor: C.amber + '99', borderRadius: 3 }]
+  }, { scales: { y: { beginAtZero: true } }, plugins: { legend: { display: false } } });
+}
+
+// 7.1 DOW x Hour Heatmap
+function renderDowHourHeatmap() {
+  const d = D.dow_hour_heatmap;
+  const dows = ['Pon', 'Wt', 'Sr', 'Czw', 'Pt', 'Sob', 'Nd'];
+  const hours = Array.from({length: 17}, (_, i) => i + 7);
+  const container = document.getElementById('heatmap-dow-hour');
+
+  const grid = {};
+  let maxVal = 0;
+  d.forEach(([h, dow, count]) => {
+    const key = dow + '-' + h;
+    grid[key] = count;
+    if (count > maxVal) maxVal = count;
+  });
+
+  let html = `<div class="heatmap" style="grid-template-columns: 50px repeat(${hours.length}, 1fr);">`;
+  html += '<div class="heatmap-label"></div>';
+  hours.forEach(h => { html += `<div class="heatmap-label">${h}</div>`; });
+
+  for (let dow = 0; dow < 7; dow++) {
+    html += `<div class="heatmap-label">${dows[dow]}</div>`;
+    hours.forEach(h => {
+      const val = grid[dow + '-' + h] || 0;
+      const intensity = val / maxVal;
+      const r = Math.round(6 + (239 - 6) * intensity);
+      const g = Math.round(182 + (68 - 182) * intensity);
+      const b = Math.round(212 + (68 - 212) * intensity);
+      html += `<div class="heatmap-cell" style="background:rgba(${r},${g},${b},${0.2 + intensity * 0.8})" title="${dows[dow]} ${h}:00 — ${val}">${val || ''}</div>`;
+    });
+  }
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+// 8.1 Visit Distribution
+function renderVisitDist() {
+  const d = D.visit_distribution;
+  makeChart('ch-visit-dist', 'bar', {
+    labels: d.visits.map(v => v + (v === 1 ? ' wizyta' : v < 5 ? ' wizyty' : ' wizyt')),
+    datasets: [{ label: 'Klienci', data: d.clients, backgroundColor: PALETTE.map(c => c + 'cc'), borderRadius: 4 }]
+  }, { scales: { y: { beginAtZero: true } }, plugins: { legend: { display: false } } });
+}
+
+// 8.2 Visit Intervals
+function renderVisitInterval() {
+  const d = D.visit_intervals;
+  makeChart('ch-visit-interval', 'bar', {
+    labels: d.bins,
+    datasets: [{ label: 'Klienci', data: d.values, backgroundColor: C.violet + '99', borderRadius: 3 }]
+  }, { scales: { y: { beginAtZero: true } }, plugins: { legend: { display: false } } });
+}
+
+// 9.0 Cancellation Chain KPIs
+function renderCancelChain() {
+  const cc = D.cancel_chain;
+  const row = document.getElementById('cancel-chain-kpis');
+  row.innerHTML = `
+    <div class="kpi-card"><div class="kpi-label">Total anulacji</div><div class="kpi-value" style="color:${C.amber}">${cc.total_cancels.toLocaleString('pl')}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Zapisali sie ponownie</div><div class="kpi-value" style="color:${C.emerald}">${cc.rebook_rate}%</div><div class="kpi-change">${cc.rebooked.toLocaleString('pl')} klientow</div></div>
+    <div class="kpi-card"><div class="kpi-label">W tym samym salonie</div><div class="kpi-value" style="color:${C.violet}">${cc.same_salon_pct}%</div></div>
+    <div class="kpi-card"><div class="kpi-label">Zrealizowali po re-booku</div><div class="kpi-value" style="color:${C.cyan}">${cc.next_done_pct}%</div></div>
+  `;
+}
+
+// 9.1 Rebook Gap
+function renderRebookGap() {
+  const d = D.rebook_gap_dist;
+  makeChart('ch-rebook-gap', 'bar', {
+    labels: d.bins.map(b => b + 'd'),
+    datasets: [{ label: 'Klienci', data: d.values, backgroundColor: C.emerald + '99', borderRadius: 3 }]
+  }, { scales: { y: { beginAtZero: true } }, plugins: { legend: { display: false } } });
+}
+
+// 9.2 Rebook Rate per Salon
+function renderRebookSalon() {
+  const d = D.rebook_rate_salon;
+  makeChart('ch-rebook-salon', 'bar', {
+    labels: d.salons,
+    datasets: [{ label: 'Re-booking rate %', data: d.rates, backgroundColor: PALETTE.map(c => c + 'cc'), borderRadius: 4 }]
+  }, { extra: { indexAxis: 'y' }, plugins: { legend: { display: false } } });
+}
+
+// 10.1 Forecast
+function renderForecast() {
+  const d = D.forecast;
+  const datasets = [];
+  let i = 0;
+  Object.entries(d).forEach(([city, fd]) => {
+    const color = PALETTE[i % PALETTE.length];
+    // Historical
+    datasets.push({
+      label: city,
+      data: fd.historical_months.map((m, j) => ({ x: m, y: fd.historical_values[j] })),
+      borderColor: color, borderWidth: 2, tension: 0.3, pointRadius: 3,
+    });
+    // Forecast (dashed)
+    const lastHist = { x: fd.historical_months[fd.historical_months.length - 1], y: fd.historical_values[fd.historical_values.length - 1] };
+    datasets.push({
+      label: city + ' (prognoza)',
+      data: [lastHist, ...fd.forecast_months.map((m, j) => ({ x: m, y: fd.forecast_values[j] }))],
+      borderColor: color, borderWidth: 2, tension: 0.3, pointRadius: 4,
+      borderDash: [6, 4], pointStyle: 'triangle',
+    });
+    i++;
+  });
+
+  makeChart('ch-forecast', 'line', {
+    datasets: datasets,
+  }, {
+    scales: { x: { type: 'category', labels: [...new Set([
+      ...Object.values(d).flatMap(fd => fd.historical_months),
+      ...Object.values(d).flatMap(fd => fd.forecast_months),
+    ])].sort() }, y: { beginAtZero: true } },
+    plugins: { legend: { labels: { filter: item => !item.text.includes('prognoza') } } }
+  });
+}
+
+// 11. Detail Table
+let tableState = { page: 0, sortCol: 'month', sortDir: 'desc', pageSize: 50 };
+
+function renderDetailTable() {
+  const f = getFilters();
+  let data = [...D.detail_table];
+  // Apply filters
+  if (f.city !== 'all') data = data.filter(r => r.city_group === f.city);
+  if (f.salon !== 'all') data = data.filter(r => r.pos === f.salon);
+  const months = filterMonths([...new Set(data.map(r => r.month))].sort());
+  data = data.filter(r => months.includes(r.month));
+
+  // Sort
+  data.sort((a, b) => {
+    let va = a[tableState.sortCol], vb = b[tableState.sortCol];
+    if (typeof va === 'string') return tableState.sortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+    return tableState.sortDir === 'asc' ? va - vb : vb - va;
+  });
+
+  // Paginate
+  const totalPages = Math.ceil(data.length / tableState.pageSize);
+  const page = Math.min(tableState.page, totalPages - 1);
+  const pageData = data.slice(page * tableState.pageSize, (page + 1) * tableState.pageSize);
+
+  const cols = [
+    { key: 'month', label: 'Miesiac' },
+    { key: 'pos', label: 'Salon' },
+    { key: 'city_group', label: 'Region' },
+    { key: 'location_type', label: 'Typ' },
+    { key: 'total', label: 'Total' },
+    { key: 'done', label: 'Done' },
+    { key: 'canceled', label: 'Cancel' },
+    { key: 'absent', label: 'Absent' },
+    { key: 'done_pct', label: 'Done%' },
+    { key: 'canceled_pct', label: 'Cancel%' },
+    { key: 'avg_lead', label: 'Lead(d)' },
+    { key: 'top_source', label: 'Top Src' },
+  ];
+
+  let html = '<table><thead><tr>';
+  cols.forEach(c => {
+    const arrow = tableState.sortCol === c.key ? (tableState.sortDir === 'asc' ? ' &#9650;' : ' &#9660;') : '';
+    html += `<th onclick="sortTable('${c.key}')">${c.label}${arrow}</th>`;
+  });
+  html += '</tr></thead><tbody>';
+  pageData.forEach(r => {
+    html += '<tr>';
+    cols.forEach(c => {
+      let v = r[c.key];
+      if (c.key === 'done_pct' || c.key === 'canceled_pct') v = v + '%';
+      if (c.key === 'location_type') v = v === 'galeria' ? '<span class="badge up">galeria</span>' : '<span class="badge">ulica</span>';
+      html += `<td>${v}</td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+
+  document.getElementById('detail-table-wrap').innerHTML = html;
+
+  // Pagination
+  let pHtml = '';
+  for (let p = 0; p < totalPages; p++) {
+    pHtml += `<button class="${p === page ? 'active' : ''}" onclick="goPage(${p})">${p + 1}</button>`;
+  }
+  pHtml += `<span style="color:var(--text3);font-size:12px;padding:4px 8px">${data.length} wierszy</span>`;
+  document.getElementById('table-pagination').innerHTML = pHtml;
+}
+
+function sortTable(col) {
+  if (tableState.sortCol === col) {
+    tableState.sortDir = tableState.sortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    tableState.sortCol = col;
+    tableState.sortDir = 'desc';
+  }
+  tableState.page = 0;
+  renderDetailTable();
+}
+
+function goPage(p) {
+  tableState.page = p;
+  renderDetailTable();
+}
+
+// === START ===
+init();
+</script>
+</body>
+</html>
