@@ -1,0 +1,1202 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Muscat × Cleora — Graph Intelligence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7"></script>
+<style>
+:root {
+  --gold: #C9A96E; --gold-dim: rgba(201,169,110,0.12); --gold-glow: rgba(201,169,110,0.15);
+  --navy-1: #050B14; --navy-2: #0A1628; --navy-3: #0F2038; --navy-4: #162A48;
+  --text-1: #E8ECF2; --text-2: #7B8FA6; --text-3: #4A6178;
+  --blue: #3B82F6; --green: #10B981; --purple: #8B5CF6; --amber: #F59E0B;
+  --red: #F43F5E; --teal: #06B6D4; --indigo: #6366F1; --pink: #EC4899;
+  --radius: 12px; --gap: 14px;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Inter',-apple-system,sans-serif; background:var(--navy-1); color:var(--text-1); line-height:1.5; }
+.wrap { max-width:1520px; margin:0 auto; padding:12px; }
+
+/* --- PASSWORD GATE --- */
+#gate { position:fixed; inset:0; z-index:99999; background:var(--navy-1); display:flex; align-items:center; justify-content:center; flex-direction:column; gap:20px; }
+#gate h1 { font-family:'DM Serif Display',serif; font-size:36px; color:var(--gold); }
+#gate p { color:var(--text-2); font-size:13px; }
+#gate input { padding:12px 24px; background:var(--navy-3); border:1px solid var(--gold-dim); border-radius:8px; color:var(--text-1); font-size:16px; text-align:center; width:280px; font-family:'Inter',sans-serif; letter-spacing:2px; }
+#gate input:focus { outline:none; border-color:var(--gold); box-shadow:0 0 0 3px var(--gold-glow); }
+#gate .err { color:var(--red); font-size:12px; min-height:18px; }
+#dash { display:none; }
+
+/* --- HEADER --- */
+.hdr { background:linear-gradient(135deg,var(--navy-2),var(--navy-3)); border:1px solid var(--gold-dim); border-radius:var(--radius); padding:24px 28px; margin-bottom:var(--gap); position:relative; overflow:hidden; }
+.hdr::before { content:''; position:absolute; top:-60%; right:-15%; width:500px; height:500px; background:radial-gradient(circle,var(--gold-glow),transparent 70%); pointer-events:none; }
+.hdr-top { display:flex; align-items:center; gap:16px; position:relative; flex-wrap:wrap; }
+.hdr h1 { font-family:'DM Serif Display',serif; font-size:28px; color:var(--gold); margin:0; letter-spacing:-0.5px; }
+.hdr h1 span { color:var(--text-2); font-family:'Inter',sans-serif; font-size:13px; font-weight:400; margin-left:8px; letter-spacing:0; }
+.hdr-meta { color:var(--text-2); font-size:12px; margin-top:4px; position:relative; }
+.hdr-back { display:inline-flex; align-items:center; gap:6px; color:var(--gold); font-size:12px; text-decoration:none; padding:4px 12px; border:1px solid var(--gold-dim); border-radius:6px; transition:all 0.2s; font-weight:500; }
+.hdr-back:hover { background:rgba(201,169,110,0.1); border-color:var(--gold); }
+
+/* --- NAV --- */
+.nav { position:sticky; top:0; z-index:100; background:rgba(5,11,20,0.92); backdrop-filter:blur(12px); border-bottom:1px solid var(--gold-dim); padding:6px 12px; display:flex; flex-wrap:wrap; gap:2px; margin-bottom:var(--gap); border-radius:0 0 8px 8px; }
+.nav a { padding:5px 11px; border-radius:6px; font-size:11px; color:var(--text-3); text-decoration:none; transition:all 0.2s; white-space:nowrap; font-weight:500; }
+.nav a:hover,.nav a.active { color:var(--gold); background:rgba(201,169,110,0.08); }
+
+/* --- KPI CARDS --- */
+.kpi-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(155px,1fr)); gap:var(--gap); margin-bottom:var(--gap); }
+.kpi { background:var(--navy-2); border:1px solid var(--gold-dim); border-radius:var(--radius); padding:16px; transition:all 0.3s; position:relative; overflow:hidden; }
+.kpi:hover { transform:translateY(-2px); border-color:rgba(201,169,110,0.35); box-shadow:0 8px 30px rgba(0,0,0,0.4),0 0 25px var(--gold-glow); }
+.kpi-label { font-size:10px; text-transform:uppercase; letter-spacing:1.2px; color:var(--text-3); margin-bottom:4px; font-weight:600; }
+.kpi-val { font-family:'DM Serif Display',serif; font-size:30px; color:var(--gold); line-height:1.1; }
+.kpi-sub { font-size:11px; color:var(--text-2); margin-top:3px; }
+
+/* --- SECTIONS --- */
+.sec { background:var(--navy-2); border:1px solid var(--gold-dim); border-radius:var(--radius); padding:20px; margin-bottom:var(--gap); }
+.sec h2 { font-family:'DM Serif Display',serif; font-size:20px; color:var(--gold); margin-bottom:14px; display:flex; align-items:center; gap:10px; border-bottom:1px solid var(--gold-dim); padding-bottom:10px; flex-wrap:wrap; }
+.sec h3 { font-size:13px; font-weight:600; color:var(--text-2); margin:14px 0 8px; text-transform:uppercase; letter-spacing:0.5px; }
+
+/* --- CHART CONTAINERS --- */
+.ch-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(420px,1fr)); gap:var(--gap); }
+.ch-box { background:rgba(5,11,20,0.5); border:1px solid rgba(201,169,110,0.06); border-radius:10px; padding:16px; position:relative; transition:all 0.25s; }
+.ch-box:hover { border-color:rgba(201,169,110,0.2); box-shadow:0 4px 20px rgba(0,0,0,0.3); }
+.ch-box canvas { max-height:350px; min-height:250px; }
+.ch-title { font-size:12px; font-weight:600; color:var(--text-2); margin-bottom:8px; }
+.ch-interp { font-size:11px; color:var(--text-2); margin-top:8px; padding:8px 10px; background:rgba(201,169,110,0.04); border-left:2px solid var(--gold); border-radius:0 4px 4px 0; line-height:1.5; }
+.ch-full { grid-column:1/-1; }
+
+/* --- MATCH VISUAL --- */
+.match-flow { display:flex; align-items:center; justify-content:center; gap:0; flex-wrap:wrap; padding:20px 0; }
+.match-node { display:flex; flex-direction:column; align-items:center; gap:6px; padding:16px 20px; background:var(--navy-3); border:1px solid var(--gold-dim); border-radius:10px; min-width:140px; }
+.match-node .mn-icon { font-size:28px; }
+.match-node .mn-label { font-size:10px; text-transform:uppercase; letter-spacing:1px; color:var(--text-3); font-weight:600; }
+.match-node .mn-val { font-family:'DM Serif Display',serif; font-size:22px; color:var(--gold); }
+.match-arrow { font-size:24px; color:var(--gold); padding:0 12px; opacity:0.5; }
+.match-node.highlight { border-color:var(--gold); box-shadow:0 0 20px var(--gold-glow); }
+
+/* --- STATS BAR --- */
+.stats-bar { display:flex; gap:0; border-radius:8px; overflow:hidden; height:36px; margin:16px 0; }
+.stats-bar div { display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:600; transition:all 0.3s; }
+.stats-bar .matched { background:var(--gold); color:var(--navy-1); }
+.stats-bar .unmatched { background:var(--navy-4); color:var(--text-2); }
+
+/* --- AOV COMPARISON --- */
+.aov-compare { display:grid; grid-template-columns:1fr auto 1fr; gap:20px; align-items:center; margin:20px 0; }
+.aov-box { text-align:center; padding:24px; background:var(--navy-3); border:1px solid var(--gold-dim); border-radius:12px; }
+.aov-box .ab-label { font-size:10px; text-transform:uppercase; letter-spacing:1px; color:var(--text-3); font-weight:600; margin-bottom:4px; }
+.aov-box .ab-val { font-family:'DM Serif Display',serif; font-size:42px; color:var(--text-2); line-height:1.1; }
+.aov-box .ab-unit { font-size:13px; color:var(--text-3); }
+.aov-box.after .ab-val { color:var(--gold); }
+.aov-arrow { font-size:36px; color:var(--green); font-weight:700; }
+.aov-uplift { text-align:center; margin:12px 0; }
+.aov-uplift .big { font-family:'DM Serif Display',serif; font-size:48px; color:var(--green); }
+.aov-uplift .sub { font-size:12px; color:var(--text-2); }
+
+/* --- SEGMENT CARDS --- */
+.seg-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:var(--gap); margin:14px 0; }
+.seg-card { background:var(--navy-3); border:1px solid var(--gold-dim); border-radius:10px; padding:16px; transition:all 0.2s; }
+.seg-card:hover { border-color:rgba(201,169,110,0.3); box-shadow:0 4px 20px rgba(0,0,0,0.3); }
+.seg-card .sc-id { font-size:9px; text-transform:uppercase; letter-spacing:1.5px; color:var(--text-3); font-weight:700; }
+.seg-card .sc-name { font-family:'DM Serif Display',serif; font-size:16px; color:var(--gold); margin:4px 0 10px; }
+.seg-card .sc-stats { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+.seg-card .sc-stat { text-align:center; padding:6px; background:rgba(5,11,20,0.4); border-radius:6px; }
+.seg-card .sc-stat .sv { font-family:'DM Serif Display',serif; font-size:18px; color:var(--text-1); }
+.seg-card .sc-stat .sl { font-size:8px; text-transform:uppercase; letter-spacing:1px; color:var(--text-3); }
+.seg-card .sc-bar { height:6px; background:var(--navy-1); border-radius:3px; overflow:hidden; margin-top:8px; }
+.seg-card .sc-fill { height:100%; background:var(--gold); border-radius:3px; transition:width 0.5s; }
+
+/* --- SALON NETWORK --- */
+.salon-pairs { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:10px; margin:14px 0; }
+.pair-card { display:flex; align-items:center; gap:12px; background:var(--navy-3); border:1px solid var(--gold-dim); border-radius:8px; padding:12px 16px; transition:all 0.2s; }
+.pair-card:hover { border-color:rgba(201,169,110,0.3); }
+.pair-card .pc-from,.pair-card .pc-to { font-size:12px; font-weight:600; color:var(--text-1); min-width:80px; }
+.pair-card .pc-arrow { color:var(--gold); font-size:16px; }
+.pair-card .pc-count { font-family:'DM Serif Display',serif; font-size:22px; color:var(--gold); margin-left:auto; }
+.pair-card .pc-label { font-size:9px; color:var(--text-3); text-transform:uppercase; letter-spacing:1px; }
+
+/* --- FUNNEL --- */
+.funnel { display:flex; flex-direction:column; align-items:center; gap:0; margin:20px 0; }
+.funnel-step { display:flex; align-items:center; justify-content:center; padding:14px; font-size:13px; font-weight:600; color:var(--text-1); border-radius:8px; text-align:center; position:relative; transition:all 0.3s; }
+.funnel-step:hover { transform:scale(1.02); }
+.funnel-conn { width:2px; height:20px; background:var(--gold-dim); }
+.funnel-val { font-family:'DM Serif Display',serif; font-size:20px; color:var(--gold); margin-right:10px; }
+
+/* --- GAUGE GRID --- */
+.gauge-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:10px; margin:14px 0; }
+.gauge-card { background:var(--navy-3); border:1px solid var(--gold-dim); border-radius:10px; padding:14px; }
+.gauge-card .gc-name { font-size:12px; font-weight:600; color:var(--text-1); margin-bottom:8px; }
+.gauge-card .gc-bar-wrap { height:10px; background:var(--navy-1); border-radius:5px; overflow:hidden; position:relative; }
+.gauge-card .gc-bar { height:100%; border-radius:5px; transition:width 0.8s ease; }
+.gauge-card .gc-bar.ok { background:var(--green); }
+.gauge-card .gc-bar.warning { background:var(--amber); }
+.gauge-card .gc-bar.danger { background:var(--red); }
+.gauge-card .gc-target { position:absolute; top:-2px; height:14px; width:2px; background:var(--text-1); border-radius:1px; }
+.gauge-card .gc-nums { display:flex; justify-content:space-between; margin-top:6px; font-size:10px; color:var(--text-3); }
+.gauge-card .gc-pct { font-family:'DM Serif Display',serif; font-size:24px; line-height:1; margin-bottom:4px; }
+.gauge-card .gc-pct.ok { color:var(--green); }
+.gauge-card .gc-pct.warning { color:var(--amber); }
+.gauge-card .gc-pct.danger { color:var(--red); }
+
+/* --- TABLE --- */
+.tbl { width:100%; border-collapse:collapse; font-size:11px; }
+.tbl th { background:rgba(201,169,110,0.08); padding:7px 8px; text-align:left; color:var(--gold); font-weight:600; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; }
+.tbl td { padding:5px 8px; border-bottom:1px solid rgba(201,169,110,0.05); color:var(--text-2); }
+.tbl tr:hover td { background:rgba(201,169,110,0.04); color:var(--text-1); }
+
+/* --- ACTION CARDS --- */
+.action-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:var(--gap); }
+.action-card { background:var(--navy-3); border-left:3px solid var(--gold); border-radius:0 10px 10px 0; padding:16px 18px; transition:all 0.2s; }
+.action-card:hover { background:var(--navy-4); }
+.action-card .ac-num { font-family:'DM Serif Display',serif; font-size:24px; color:var(--gold); float:left; margin-right:12px; line-height:1; }
+.action-card .ac-title { font-size:13px; font-weight:700; color:var(--text-1); margin-bottom:4px; }
+.action-card .ac-problem { font-size:11px; color:var(--red); margin-bottom:4px; }
+.action-card .ac-action { font-size:11px; color:var(--text-2); margin-bottom:4px; }
+.action-card .ac-impact { font-size:11px; color:var(--green); font-weight:600; }
+.action-card.p1 { border-left-color:var(--red); }
+.action-card.p2 { border-left-color:var(--amber); }
+.action-card.p3 { border-left-color:var(--blue); }
+
+/* --- INSIGHT CALLOUT --- */
+.insight { margin:12px 0; padding:12px 16px; background:rgba(16,185,129,0.06); border:1px solid rgba(16,185,129,0.15); border-radius:8px; font-size:12px; color:var(--green); line-height:1.5; }
+.insight strong { color:var(--text-1); }
+.insight.warn { background:rgba(244,63,94,0.06); border-color:rgba(244,63,94,0.15); color:var(--red); }
+.insight.info { background:rgba(59,130,246,0.06); border-color:rgba(59,130,246,0.15); color:var(--blue); }
+
+/* --- FOOTER --- */
+.ftr { text-align:center; padding:24px; color:var(--text-3); font-size:11px; border-top:1px solid var(--gold-dim); margin-top:20px; }
+.ftr a { color:var(--gold); text-decoration:none; }
+.ftr a:hover { text-decoration:underline; }
+
+/* --- RESPONSIVE --- */
+@media(max-width:768px) {
+  .ch-grid { grid-template-columns:1fr; }
+  .kpi-row { grid-template-columns:repeat(2,1fr); }
+  .kpi-val { font-size:24px; }
+  .hdr h1 { font-size:22px; }
+  .aov-compare { grid-template-columns:1fr; }
+  .aov-arrow { transform:rotate(90deg); text-align:center; }
+  .match-flow { flex-direction:column; }
+  .match-arrow { transform:rotate(90deg); padding:8px 0; }
+  .seg-grid { grid-template-columns:1fr; }
+  .gauge-grid { grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); }
+}
+@media(max-width:480px) {
+  .kpi-row { grid-template-columns:1fr; }
+  .wrap { padding:8px; }
+}
+</style>
+</head>
+<body>
+
+<!-- PASSWORD GATE -->
+<div id="gate">
+  <h1>Muscat &times; Cleora</h1>
+  <p>Graph Intelligence Dashboard &mdash; wprowadz haslo</p>
+  <input type="password" id="pw" placeholder="Haslo..." autofocus>
+  <div class="err" id="pwErr"></div>
+</div>
+
+<!-- DASHBOARD -->
+<div id="dash">
+<div class="wrap">
+
+<!-- HEADER -->
+<div class="hdr">
+  <div class="hdr-top">
+    <div>
+      <h1>Muscat &times; Cleora <span>Graph Intelligence</span></h1>
+      <div class="hdr-meta">Analiza grafowa sieci klientow Muscat Optical &mdash; embeddingi Cleora + k-means clustering &mdash; Kwiecien 2026</div>
+    </div>
+    <a href="index.html" class="hdr-back" style="margin-left:auto;">&larr; Glowny dashboard</a>
+  </div>
+</div>
+
+<!-- NAV -->
+<nav class="nav" id="topnav">
+  <a href="#kpis">KPI</a>
+  <a href="#match">Match</a>
+  <a href="#journey">Journey</a>
+  <a href="#segments">Segmenty</a>
+  <a href="#salon-network">Salon Network</a>
+  <a href="#vip">VIP Lookalikes</a>
+  <a href="#capacity">Capacity</a>
+  <a href="#competitors">Konkurencja</a>
+  <a href="#actions">Action Plan</a>
+</nav>
+
+<!-- KPI ROW -->
+<div class="kpi-row" id="kpis">
+  <div class="kpi">
+    <div class="kpi-label">Match Rate</div>
+    <div class="kpi-val">52.6%</div>
+    <div class="kpi-sub">46,301 z 87,975 bookings</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">AOV Uplift</div>
+    <div class="kpi-val" style="color:var(--green);">+24.3%</div>
+    <div class="kpi-sub">Booking vs walk-in</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Mean LTV</div>
+    <div class="kpi-val">1,230</div>
+    <div class="kpi-sub">PLN / klient</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Sleeping VIPs</div>
+    <div class="kpi-val" style="color:var(--amber);">4,200</div>
+    <div class="kpi-sub">Prospects do aktywacji</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Network Capacity</div>
+    <div class="kpi-val" style="color:var(--red);">26%</div>
+    <div class="kpi-sub">vs target 60%</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Revenue Gap</div>
+    <div class="kpi-val">38.7M</div>
+    <div class="kpi-sub">PLN / rok do odzyskania</div>
+  </div>
+</div>
+
+<!-- SECTION 1: MATCH DISCOVERY -->
+<div class="sec" id="match">
+  <h2>Odkrycie: client_id = MD5(telefon)</h2>
+  <p style="color:var(--text-2); font-size:13px; margin-bottom:16px;">Kluczowe odkrycie analityczne: <strong style="color:var(--gold);">client_id w systemie Muscat to MD5 hash numeru telefonu</strong>. To pozwolilo na polaczenie danych bookingowych z danymi zakupowymi i stworzenie pelnego obrazu customer journey.</p>
+
+  <div class="match-flow">
+    <div class="match-node">
+      <div class="mn-icon">📱</div>
+      <div class="mn-label">Numer telefonu</div>
+      <div class="mn-val">30,949</div>
+      <div style="font-size:10px;color:var(--text-3);">unikalnych</div>
+    </div>
+    <div class="match-arrow">&rarr;</div>
+    <div class="match-node">
+      <div class="mn-icon">🔐</div>
+      <div class="mn-label">MD5 Hash</div>
+      <div class="mn-val">client_id</div>
+      <div style="font-size:10px;color:var(--text-3);">matching key</div>
+    </div>
+    <div class="match-arrow">&rarr;</div>
+    <div class="match-node highlight">
+      <div class="mn-icon">🔗</div>
+      <div class="mn-label">Matched</div>
+      <div class="mn-val">46,301</div>
+      <div style="font-size:10px;color:var(--text-3);">bookings</div>
+    </div>
+    <div class="match-arrow">&rarr;</div>
+    <div class="match-node">
+      <div class="mn-icon">📊</div>
+      <div class="mn-label">Match Rate</div>
+      <div class="mn-val">52.6%</div>
+      <div style="font-size:10px;color:var(--text-3);">calkowity</div>
+    </div>
+  </div>
+
+  <div class="stats-bar">
+    <div class="matched" style="width:52.6%;">52.6% matched (46,301)</div>
+    <div class="unmatched" style="width:47.4%;">47.4% unmatched (41,674)</div>
+  </div>
+
+  <div class="ch-interp">
+    <strong>Interpretacja:</strong> Ponad polowa bookings zostala dopasowana do zamowien. Te 46,301 matched bookings pozwalaja analizowac pelna sciezke klienta: od umowienia badania przez wizyte w salonie po zakup okularow. Niedopasowane 47.4% to glownie klienci bez zamowienia lub z innym numerem telefonu.
+  </div>
+</div>
+
+<!-- SECTION 2: CUSTOMER JOURNEY -->
+<div class="sec" id="journey">
+  <h2>Customer Journey &mdash; badanie = upsell machine</h2>
+
+  <div class="aov-compare">
+    <div class="aov-box">
+      <div class="ab-label">AOV bez badania (walk-in)</div>
+      <div class="ab-val">744</div>
+      <div class="ab-unit">PLN</div>
+    </div>
+    <div class="aov-arrow">&rarr;</div>
+    <div class="aov-box after">
+      <div class="ab-label">AOV z badaniem</div>
+      <div class="ab-val">925</div>
+      <div class="ab-unit">PLN</div>
+    </div>
+  </div>
+
+  <div class="aov-uplift">
+    <div class="big">+24.3%</div>
+    <div class="sub">Uplift AOV dla klientow z badaniem wzroku vs walk-in</div>
+  </div>
+
+  <div class="insight">
+    <strong>100% klientow ktorzy anulowali i mieli orders &mdash; i tak kupili!</strong> Kazdy klient, ktory anulowal badanie i zostal dopasowany do zamowien, ostatecznie dokonal zakupu. Anulowanie badania NIE oznacza utraty klienta.
+  </div>
+
+  <div class="ch-grid">
+    <div class="ch-box">
+      <div class="ch-title">Rozklad LTV klientow</div>
+      <canvas id="ltvChart"></canvas>
+      <div class="ch-interp">
+        <strong>Interpretacja:</strong> Mediana LTV wynosi 1,110 PLN, a top 10% klientow generuje 2,292 PLN. Top 1% to klienci z LTV powyzej 4,288 PLN &mdash; grupa do szczegolnej obslugi VIP.
+      </div>
+    </div>
+    <div class="ch-box">
+      <div class="ch-title">Revenue per booking status</div>
+      <canvas id="revenueBookingChart"></canvas>
+      <div class="ch-interp">
+        <strong>Interpretacja:</strong> Zrealizowane badanie generuje 1,075 PLN przychodu, co jest 44% wiecej niz AOV walk-in (744 PLN). Badanie wzroku to najsilniejszy trigger zakupowy w calej sieci.
+      </div>
+    </div>
+  </div>
+
+  <h3>Powrotnosc klientow</h3>
+  <div class="ch-grid">
+    <div class="ch-box">
+      <div class="ch-title">Liczba wizyt per klient</div>
+      <canvas id="repeatChart"></canvas>
+      <div class="ch-interp">
+        <strong>Interpretacja:</strong> 68% klientow wizytuje tylko raz, ale 28% wraca 2-3 razy, a 4% to lojalni klienci z 4+ wizytami. Ci lojalni (1,236 osob) to core audience do programu VIP.
+      </div>
+    </div>
+    <div class="ch-box">
+      <div class="ch-title">Klienci odwiedzajacy wiele salonow</div>
+      <canvas id="multiSalonChart"></canvas>
+      <div class="ch-interp">
+        <strong>Interpretacja:</strong> 94.2% klientow trzyma sie jednego salonu, ale 1,806 klientow odwiedza 2+ salonow. To "bridge clients" &mdash; laczniki miedzy salonami, cenni dla cross-selling.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 3: SEGMENTS -->
+<div class="sec" id="segments">
+  <h2>5 segmentow klientow (Cleora k-means)</h2>
+  <p style="color:var(--text-2); font-size:12px; margin-bottom:14px;">Segmentacja oparta na graph embeddings Cleora &mdash; k-means clustering na wektorach klient-salon-booking. Kazdy segment reprezentuje odrebny wzorzec zachowan zakupowych i geograficznych.</p>
+
+  <div class="seg-grid" id="segGrid"></div>
+
+  <div class="ch-grid" style="margin-top:var(--gap);">
+    <div class="ch-box">
+      <div class="ch-title">Klienci per segment</div>
+      <canvas id="segClientsChart"></canvas>
+      <div class="ch-interp">
+        <strong>Interpretacja:</strong> Segment "Core network" (ID 4) obejmuje 72% wszystkich klientow &mdash; to glowna baza klientow Muscat, rozlozona po calej sieci. Reszta to wyspecjalizowane klastry regionalne.
+      </div>
+    </div>
+    <div class="ch-box">
+      <div class="ch-title">AOV / Done% / Cancel% per segment</div>
+      <canvas id="segRadarChart"></canvas>
+      <div class="ch-interp">
+        <strong>Interpretacja:</strong> Segmenty sa zaskakujaco jednorodne pod wzgledem AOV (884-939 PLN) i cancel rate (20-24%). "Mixed metro" (ID 3) ma najwyzsze AOV (939 PLN) ale najnizszy Done% (72%) &mdash; klienci zamozni, ale czesto anulujacy.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 4: SALON NETWORK -->
+<div class="sec" id="salon-network">
+  <h2>Salon Similarity Network</h2>
+  <p style="color:var(--text-2); font-size:12px; margin-bottom:14px;">Na podstawie grafu Cleora: ktore salony dziela klientow? Wysokie overlap = potencjalna kanibalizacja LUB komplementarnosc geograficzna.</p>
+
+  <div class="ch-grid">
+    <div class="ch-box ch-full">
+      <div class="ch-title">Macierz wspoldzielenia klientow miedzy salonami</div>
+      <canvas id="salonHeatmap"></canvas>
+      <div class="ch-interp">
+        <strong>Interpretacja:</strong> Najsilniejszy overlap: Krakow Pawia &harr; Krakow Starowiślna (439 wspolnych klientow!) &mdash; wyraźna kanibalizacja dwoch krakowskich salonow. Gdansk &harr; Gdynia Riviera (127) to drugie ognisko. Inne pary maja minimalne nakładanie.
+      </div>
+    </div>
+  </div>
+
+  <h3>Top pary salonow (shared clients)</h3>
+  <div class="salon-pairs" id="salonPairs"></div>
+
+  <div class="insight warn">
+    <strong>Kanibalizacja vs komplementarnosc:</strong> 439 wspolnych klientow miedzy Kr. Pawia a Kr. Starowiślna sugeruje, ze te dwa salony rywalizuja o tych samych klientow. Rozwazenie: roznicowanie oferty / specjalizacja salonow / przekierowanie ruchu.
+  </div>
+</div>
+
+<!-- SECTION 5: VIP LOOKALIKES -->
+<div class="sec" id="vip">
+  <h2>VIP Lookalikes &mdash; 4,200 sleeping VIPs</h2>
+  <p style="color:var(--text-2); font-size:12px; margin-bottom:16px;">Na podstawie podobienstwa embeddingów Cleora do istniejacych klientow VIP (LTV &gt; 2,293 PLN). Klienci o najwyzszym prawdopodobienstwie konwersji na VIP.</p>
+
+  <div class="funnel">
+    <div class="funnel-step" style="width:90%; background:var(--navy-3); border:1px solid var(--gold-dim);">
+      <span class="funnel-val">30,949</span> Matched unique phones
+    </div>
+    <div class="funnel-conn"></div>
+    <div class="funnel-step" style="width:75%; background:var(--navy-4); border:1px solid var(--gold-dim);">
+      <span class="funnel-val">26,998</span> Non-VIP pool
+    </div>
+    <div class="funnel-conn"></div>
+    <div class="funnel-step" style="width:50%; background:rgba(201,169,110,0.1); border:1px solid var(--gold);">
+      <span class="funnel-val">4,200</span> High-similarity sleeping VIPs
+    </div>
+    <div class="funnel-conn"></div>
+    <div class="funnel-step" style="width:35%; background:rgba(201,169,110,0.2); border:1px solid var(--gold); box-shadow:0 0 20px var(--gold-glow);">
+      <span class="funnel-val">776K PLN</span> Potential revenue
+    </div>
+  </div>
+
+  <div class="ch-grid">
+    <div class="ch-box">
+      <div class="ch-title">VIP vs Non-VIP pool</div>
+      <canvas id="vipPieChart"></canvas>
+      <div class="ch-interp">
+        <strong>Interpretacja:</strong> Tylko 10% klientow to VIP (LTV &gt; 2,293 PLN), ale generuja nieproporcjonalnie duzy przychod. 4,200 "sleeping VIPs" to klienci z embeddingami podobnymi do VIP &mdash; kandydaci do Meta Custom Audience i targetowanego re-marketingu.
+      </div>
+    </div>
+    <div class="ch-box">
+      <div class="ch-title">LTV distribution: VIP threshold</div>
+      <canvas id="vipThresholdChart"></canvas>
+      <div class="ch-interp">
+        <strong>Interpretacja:</strong> Prog VIP ustalono na 2,293 PLN (top 10% LTV). Sleeping VIPs to klienci z LTV 1,100-2,293 PLN, ktorych profile grafowe (salony, czestotliwosc, AOV) sa najbardziej zblizone do profili obecnych VIPow.
+      </div>
+    </div>
+  </div>
+
+  <div class="insight info">
+    <strong>Rekomendacja:</strong> Eksport 4,200 sleeping VIPs do Meta Custom Audience &rarr; Lookalike 1% &rarr; kampania "Badanie VIP + konsultacja" &rarr; szacowany uplift 776K PLN.
+  </div>
+</div>
+
+<!-- SECTION 6: CAPACITY GAP -->
+<div class="sec" id="capacity">
+  <h2>Capacity Gap &mdash; droga do 60%</h2>
+  <p style="color:var(--text-2); font-size:12px; margin-bottom:14px;">Maksymalna pojemnosc salonu: 520 badan/mies. Target: 60% (312 badan/mies.). Aktualne srednie wykorzystanie sieci: <strong style="color:var(--red);">26%</strong>. Gap do zamkniecia: 36,048 badan/rok = <strong style="color:var(--gold);">38.7M PLN przychodu</strong>.</p>
+
+  <div class="gauge-grid" id="gaugeGrid"></div>
+
+  <div class="ch-grid" style="margin-top:var(--gap);">
+    <div class="ch-box ch-full">
+      <div class="ch-title">Wykorzystanie capacity per salon (% z 520 max/mies.)</div>
+      <canvas id="capacityChart"></canvas>
+      <div class="ch-interp">
+        <strong>Interpretacja:</strong> Tylko Chmielna (71.9%) i Arkadia (64%) przekraczaja target 60%. Reszta sieci dziala znacznie ponizej potencjalu. Najwieksze rezerwy: Lublin (10.3%), Szczecin (10.7%), Mokotow (16.2%) &mdash; te salony potrzebuja pilnej interwencji marketingowej.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 7: COMPETITIVE PRICING -->
+<div class="sec" id="competitors">
+  <h2>Competitive Pricing (Perplexity AI)</h2>
+  <p style="color:var(--text-2); font-size:12px; margin-bottom:14px;">Porownanie cennikow badan wzroku glownych sieci optycznych w Polsce. Dane z Perplexity AI, kwiecien 2026.</p>
+
+  <div style="overflow-x:auto;">
+    <table class="tbl">
+      <thead>
+        <tr>
+          <th>Siec</th>
+          <th>Cena badania</th>
+          <th>Z zakupem</th>
+          <th>Promo</th>
+        </tr>
+      </thead>
+      <tbody id="compTable"></tbody>
+    </table>
+  </div>
+
+  <div class="insight warn" style="margin-top:14px;">
+    <strong>Kodano oferuje badanie za 1 PLN</strong> &mdash; bezposredni konkurent cenowy. Muscat odpowiada promocja "badanie za 9 PLN", ale Kodano jest agresywniejsze. Lynx Optique rowniez stosuje model "1 PLN z okularami". Rynek zmierza ku darmowym badaniom jako lead magnet.
+  </div>
+</div>
+
+<!-- SECTION 8: ACTION PLAN -->
+<div class="sec" id="actions">
+  <h2>Action Plan &mdash; Fill to 60%</h2>
+
+  <div class="action-grid">
+    <div class="action-card p1">
+      <div class="ac-num">1</div>
+      <div class="ac-title">Sleeping VIP Activation</div>
+      <div class="ac-problem">Problem: 4,200 klientow o profilu VIP nie aktywowanych</div>
+      <div class="ac-action">Akcja: Export do Meta Custom Audience &rarr; kampania "VIP eye exam" z personalnym zaproszeniem</div>
+      <div class="ac-impact">Impact: +776K PLN / potencjal reaktywacji 15-25%</div>
+    </div>
+    <div class="action-card p1">
+      <div class="ac-num">2</div>
+      <div class="ac-title">Capacity boost: Lublin, Szczecin, Mokotow</div>
+      <div class="ac-problem">Problem: 3 salony ponizej 17% capacity (10-16%)</div>
+      <div class="ac-action">Akcja: Lokalne kampanie Google Ads + SEO + partnership z optykami lokalnymi + oferta "pierwsze badanie gratis"</div>
+      <div class="ac-impact">Impact: +180 badan/mies. = +2.3M PLN/rok per salon</div>
+    </div>
+    <div class="action-card p2">
+      <div class="ac-num">3</div>
+      <div class="ac-title">Krakow de-cannibalization</div>
+      <div class="ac-problem">Problem: 439 wspolnych klientow miedzy Pawia i Starowiślna</div>
+      <div class="ac-action">Akcja: Specjalizacja salonow (Pawia = premium/progresywne, Starowiślna = family/budget) + roznicowanie oferty</div>
+      <div class="ac-impact">Impact: +15-20% uplift per salon przez wyeliminowanie wewnetrznej konkurencji</div>
+    </div>
+    <div class="action-card p2">
+      <div class="ac-num">4</div>
+      <div class="ac-title">Repeat booking automation</div>
+      <div class="ac-problem">Problem: 68% klientow wizytuje tylko raz</div>
+      <div class="ac-action">Akcja: Email/SMS nurturing: "Czas na kontrole wzroku" po 12 mies. + loyalty program + birthday voucher</div>
+      <div class="ac-impact">Impact: +8,000 repeat bookings/rok = +8.6M PLN</div>
+    </div>
+    <div class="action-card p3">
+      <div class="ac-num">5</div>
+      <div class="ac-title">Bridge clients cross-sell</div>
+      <div class="ac-problem">Problem: 1,806 multi-salon clients nie targetowanych specjalnie</div>
+      <div class="ac-action">Akcja: "Twoj ulubiony salon" recommendation engine + cross-salon referral bonus</div>
+      <div class="ac-impact">Impact: +12% AOV uplift dla multi-salon klientow</div>
+    </div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<div class="ftr">
+  Powered by <a href="https://marketinghackers.pl" target="_blank">Marketing Hackers</a> &times;
+  <a href="https://cleora.ai" target="_blank">Cleora.ai</a> &times;
+  <a href="https://perplexity.ai" target="_blank">Perplexity AI</a>
+  <br>Muscat Optical Chain &mdash; Graph Intelligence Dashboard &mdash; Kwiecien 2026
+</div>
+
+</div><!-- /wrap -->
+</div><!-- /dash -->
+
+<script>
+// ===== DATA =====
+const CLEORA = {
+  match: {
+    method: 'client_id = MD5(phone number)',
+    matched_bookings: 46301,
+    total_bookings: 87975,
+    match_rate: 52.6,
+    unique_phones_matched: 30949,
+  },
+  journey: {
+    aov_with_booking: 925,
+    aov_without_booking: 744,
+    aov_uplift_pct: 24.3,
+    revenue_per_done_booking: 1075,
+    mean_ltv: 1230,
+    median_ltv: 1110,
+    top10_ltv: 2292,
+    top1_ltv: 4288,
+    canceled_later_bought: 100,
+  },
+  segments: [
+    {id: 0, name: 'Poznan/Katowice/Wroclaw', clients: 780, aov: 898, done_pct: 77, cancel_pct: 20, female_pct: 71, top_salons: 'Poznan, Katowice, Wr. Stawowa'},
+    {id: 1, name: 'Warszawa Targowa cluster', clients: 2651, aov: 884, done_pct: 73, cancel_pct: 24, female_pct: 69, top_salons: 'Targowa, Chmielna, Arkadia'},
+    {id: 2, name: 'Katowice dominant', clients: 4268, aov: 917, done_pct: 75, cancel_pct: 23, female_pct: 70, top_salons: 'Katowice'},
+    {id: 3, name: 'Mixed metro', clients: 647, aov: 939, done_pct: 72, cancel_pct: 24, female_pct: 71, top_salons: 'Katowice, Poznan, Arkadia'},
+    {id: 4, name: 'Core network', clients: 21654, aov: 920, done_pct: 75, cancel_pct: 22, female_pct: 70, top_salons: 'Poznan, Wr. Stawowa, Arkadia'},
+  ],
+  vip: {
+    threshold_pln: 2293,
+    vip_count: 3001,
+    non_vip_pool: 26998,
+    sleeping_vip_estimate: 4200,
+    sleeping_vip_potential_revenue: 776000,
+  },
+  salon_overlap: {
+    'Krakow Pawia': [['Krakow Starowiślna', 439], ['Katowice', 28], ['Chmielna', 18]],
+    'Krakow Starowiślna': [['Krakow Pawia', 439], ['Chmielna', 25], ['Arkadia', 21]],
+    'Gdansk': [['Gdynia Riviera', 127], ['Arkadia', 72], ['Chmielna', 40]],
+    'Gdynia Riviera': [['Gdansk', 127]],
+    'Katowice': [['Chmielna', 29], ['Krakow Pawia', 28], ['Krakow Starowiślna', 20]],
+  },
+  multi_salon: { one: 29143, two: 1708, three_plus: 98 },
+  repeat: { one: 21186, two_three: 8527, four_plus: 1236 },
+  capacity: {
+    max_per_salon_month: 520,
+    target_pct: 60,
+    target_per_salon: 312,
+    current_network_pct: 26,
+    gap_monthly: 3004,
+    gap_yearly: 36048,
+    gap_revenue_yearly: 38751600,
+    salons: [
+      {name: 'Chmielna', current: 374, pct: 71.9, status: 'ok'},
+      {name: 'Arkadia', current: 333, pct: 64.0, status: 'ok'},
+      {name: 'Poznan', current: 265, pct: 50.9, status: 'warning'},
+      {name: 'Wroclavia', current: 254, pct: 48.9, status: 'warning'},
+      {name: 'Katowice', current: 214, pct: 41.2, status: 'warning'},
+      {name: 'Wola Park', current: 168, pct: 32.4, status: 'danger'},
+      {name: 'Gdansk', current: 153, pct: 29.4, status: 'danger'},
+      {name: 'Gdynia Riviera', current: 144, pct: 27.6, status: 'danger'},
+      {name: 'Lodz', current: 141, pct: 27.2, status: 'danger'},
+      {name: 'Targowa', current: 141, pct: 27.1, status: 'danger'},
+      {name: 'Kr. Starowiślna', current: 116, pct: 22.3, status: 'danger'},
+      {name: 'Kr. Pawia', current: 110, pct: 21.2, status: 'danger'},
+      {name: 'Magnolia', current: 85, pct: 16.4, status: 'danger'},
+      {name: 'Mokotow', current: 84, pct: 16.2, status: 'danger'},
+      {name: 'Szczecin', current: 56, pct: 10.7, status: 'danger'},
+      {name: 'Lublin', current: 54, pct: 10.3, status: 'danger'},
+    ],
+  },
+  competitors: {
+    'Muscat': {exam_price: '9-89 PLN', with_purchase: '0 PLN', promo: 'Badanie za 9 zl'},
+    'Kodano': {exam_price: '1-200 PLN', with_purchase: '1 PLN', promo: 'Badanie za 1 zl (!)'},
+    'Vision Express': {exam_price: '149 PLN', with_purchase: '9 PLN', promo: '9 PLN z okularami'},
+    'Lynx Optique': {exam_price: '159 PLN', with_purchase: '1 PLN', promo: '1 PLN z okularami'},
+    'Rynek (srednia)': {exam_price: '100-250 PLN', with_purchase: '0-50 PLN', promo: 'Varies'},
+  },
+};
+
+// ===== PASSWORD GATE =====
+const gate = document.getElementById('gate');
+const dash = document.getElementById('dash');
+const pwInput = document.getElementById('pw');
+const pwErr = document.getElementById('pwErr');
+
+pwInput.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') {
+    if (pwInput.value === 'muscat2026') {
+      gate.style.display = 'none';
+      dash.style.display = 'block';
+      initCharts();
+    } else {
+      pwErr.textContent = 'Nieprawidlowe haslo';
+      pwInput.value = '';
+      pwInput.focus();
+    }
+  }
+});
+
+// ===== CHART DEFAULTS =====
+Chart.defaults.color = '#7B8FA6';
+Chart.defaults.borderColor = 'rgba(201,169,110,0.08)';
+Chart.defaults.font.family = "'Inter', sans-serif";
+Chart.defaults.font.size = 11;
+
+const GOLD = '#C9A96E';
+const GOLD_A = 'rgba(201,169,110,0.6)';
+const COLORS = ['#C9A96E', '#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#06B6D4', '#F43F5E', '#EC4899'];
+
+function initCharts() {
+  buildSegmentCards();
+  buildSalonPairs();
+  buildCompTable();
+  buildGauges();
+  buildLtvChart();
+  buildRevenueBookingChart();
+  buildRepeatChart();
+  buildMultiSalonChart();
+  buildSegClientsChart();
+  buildSegRadarChart();
+  buildSalonHeatmap();
+  buildVipPieChart();
+  buildVipThresholdChart();
+  buildCapacityChart();
+}
+
+// ===== SEGMENT CARDS =====
+function buildSegmentCards() {
+  const grid = document.getElementById('segGrid');
+  const totalClients = CLEORA.segments.reduce((s, seg) => s + seg.clients, 0);
+  CLEORA.segments.forEach((seg, i) => {
+    const pct = ((seg.clients / totalClients) * 100).toFixed(1);
+    grid.innerHTML += `
+      <div class="seg-card">
+        <div class="sc-id">Segment ${seg.id}</div>
+        <div class="sc-name">${seg.name}</div>
+        <div class="sc-stats">
+          <div class="sc-stat"><div class="sv">${seg.clients.toLocaleString('pl')}</div><div class="sl">Klienci</div></div>
+          <div class="sc-stat"><div class="sv">${seg.aov}</div><div class="sl">AOV (PLN)</div></div>
+          <div class="sc-stat"><div class="sv">${seg.done_pct}%</div><div class="sl">Done</div></div>
+          <div class="sc-stat"><div class="sv">${seg.cancel_pct}%</div><div class="sl">Cancel</div></div>
+        </div>
+        <div class="sc-bar"><div class="sc-fill" style="width:${pct}%;background:${COLORS[i]};"></div></div>
+        <div style="font-size:9px;color:var(--text-3);margin-top:4px;">Top: ${seg.top_salons} | ${seg.female_pct}% kobiet | ${pct}% bazy</div>
+      </div>
+    `;
+  });
+}
+
+// ===== SALON PAIRS =====
+function buildSalonPairs() {
+  const container = document.getElementById('salonPairs');
+  const pairs = [];
+  const seen = new Set();
+  Object.entries(CLEORA.salon_overlap).forEach(([salon, overlaps]) => {
+    overlaps.forEach(([target, count]) => {
+      const key = [salon, target].sort().join('|');
+      if (!seen.has(key)) {
+        seen.add(key);
+        pairs.push({from: salon, to: target, count});
+      }
+    });
+  });
+  pairs.sort((a, b) => b.count - a.count);
+  pairs.forEach(p => {
+    container.innerHTML += `
+      <div class="pair-card">
+        <div class="pc-from">${p.from}</div>
+        <div class="pc-arrow">&harr;</div>
+        <div class="pc-to">${p.to}</div>
+        <div style="margin-left:auto;text-align:right;">
+          <div class="pc-count">${p.count}</div>
+          <div class="pc-label">wspolnych</div>
+        </div>
+      </div>
+    `;
+  });
+}
+
+// ===== COMPETITOR TABLE =====
+function buildCompTable() {
+  const tbody = document.getElementById('compTable');
+  Object.entries(CLEORA.competitors).forEach(([name, data]) => {
+    const isMuscat = name === 'Muscat';
+    tbody.innerHTML += `
+      <tr style="${isMuscat ? 'background:rgba(201,169,110,0.06);' : ''}">
+        <td style="${isMuscat ? 'color:var(--gold);font-weight:700;' : ''}">${name}</td>
+        <td>${data.exam_price}</td>
+        <td>${data.with_purchase}</td>
+        <td>${data.promo}</td>
+      </tr>
+    `;
+  });
+}
+
+// ===== GAUGE CARDS =====
+function buildGauges() {
+  const grid = document.getElementById('gaugeGrid');
+  CLEORA.capacity.salons.forEach(s => {
+    grid.innerHTML += `
+      <div class="gauge-card">
+        <div class="gc-name">${s.name}</div>
+        <div class="gc-pct ${s.status}">${s.pct}%</div>
+        <div class="gc-bar-wrap">
+          <div class="gc-bar ${s.status}" style="width:${s.pct}%;"></div>
+          <div class="gc-target" style="left:60%;"></div>
+        </div>
+        <div class="gc-nums">
+          <span>${s.current} / mies.</span>
+          <span>target: 312</span>
+          <span>max: 520</span>
+        </div>
+      </div>
+    `;
+  });
+}
+
+// ===== CHARTS =====
+
+function buildLtvChart() {
+  const ctx = document.getElementById('ltvChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: ['Mean LTV', 'Median LTV', 'Top 10% LTV', 'Top 1% LTV'],
+      datasets: [{
+        data: [CLEORA.journey.mean_ltv, CLEORA.journey.median_ltv, CLEORA.journey.top10_ltv, CLEORA.journey.top1_ltv],
+        backgroundColor: [GOLD_A, 'rgba(59,130,246,0.6)', 'rgba(245,158,11,0.6)', 'rgba(244,63,94,0.6)'],
+        borderColor: [GOLD, '#3B82F6', '#F59E0B', '#F43F5E'],
+        borderWidth: 1,
+        borderRadius: 6,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {display: false},
+        tooltip: {callbacks: {label: ctx => ctx.parsed.y.toLocaleString('pl') + ' PLN'}}
+      },
+      scales: {
+        y: {beginAtZero: true, grid: {color: 'rgba(201,169,110,0.06)'}, ticks: {callback: v => v.toLocaleString('pl') + ' PLN'}},
+        x: {grid: {display: false}}
+      }
+    }
+  });
+}
+
+function buildRevenueBookingChart() {
+  const ctx = document.getElementById('revenueBookingChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: ['AOV walk-in', 'AOV z badaniem', 'Revenue / done booking'],
+      datasets: [{
+        data: [CLEORA.journey.aov_without_booking, CLEORA.journey.aov_with_booking, CLEORA.journey.revenue_per_done_booking],
+        backgroundColor: ['rgba(74,97,120,0.5)', GOLD_A, 'rgba(16,185,129,0.6)'],
+        borderColor: ['#4A6178', GOLD, '#10B981'],
+        borderWidth: 1,
+        borderRadius: 6,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {display: false},
+        tooltip: {callbacks: {label: ctx => ctx.parsed.y + ' PLN'}}
+      },
+      scales: {
+        y: {beginAtZero: true, grid: {color: 'rgba(201,169,110,0.06)'}, ticks: {callback: v => v + ' PLN'}},
+        x: {grid: {display: false}}
+      }
+    }
+  });
+}
+
+function buildRepeatChart() {
+  const ctx = document.getElementById('repeatChart').getContext('2d');
+  const total = CLEORA.repeat.one + CLEORA.repeat.two_three + CLEORA.repeat.four_plus;
+  new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['1 wizyta', '2-3 wizyty', '4+ wizyt'],
+      datasets: [{
+        data: [CLEORA.repeat.one, CLEORA.repeat.two_three, CLEORA.repeat.four_plus],
+        backgroundColor: ['rgba(74,97,120,0.5)', GOLD_A, 'rgba(16,185,129,0.6)'],
+        borderColor: 'rgba(5,11,20,0.8)',
+        borderWidth: 2,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {position: 'bottom', labels: {padding: 16, usePointStyle: true, pointStyle: 'circle'}},
+        tooltip: {callbacks: {label: ctx => {
+          const pct = ((ctx.parsed / total) * 100).toFixed(1);
+          return `${ctx.label}: ${ctx.parsed.toLocaleString('pl')} (${pct}%)`;
+        }}}
+      }
+    }
+  });
+}
+
+function buildMultiSalonChart() {
+  const ctx = document.getElementById('multiSalonChart').getContext('2d');
+  const total = CLEORA.multi_salon.one + CLEORA.multi_salon.two + CLEORA.multi_salon.three_plus;
+  new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['1 salon', '2 salony', '3+ salonow'],
+      datasets: [{
+        data: [CLEORA.multi_salon.one, CLEORA.multi_salon.two, CLEORA.multi_salon.three_plus],
+        backgroundColor: ['rgba(74,97,120,0.5)', 'rgba(59,130,246,0.6)', 'rgba(245,158,11,0.6)'],
+        borderColor: 'rgba(5,11,20,0.8)',
+        borderWidth: 2,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {position: 'bottom', labels: {padding: 16, usePointStyle: true, pointStyle: 'circle'}},
+        tooltip: {callbacks: {label: ctx => {
+          const pct = ((ctx.parsed / total) * 100).toFixed(1);
+          return `${ctx.label}: ${ctx.parsed.toLocaleString('pl')} (${pct}%)`;
+        }}}
+      }
+    }
+  });
+}
+
+function buildSegClientsChart() {
+  const ctx = document.getElementById('segClientsChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: CLEORA.segments.map(s => s.name),
+      datasets: [{
+        label: 'Klienci',
+        data: CLEORA.segments.map(s => s.clients),
+        backgroundColor: CLEORA.segments.map((_, i) => COLORS[i] + '99'),
+        borderColor: CLEORA.segments.map((_, i) => COLORS[i]),
+        borderWidth: 1,
+        borderRadius: 6,
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {display: false},
+        tooltip: {callbacks: {label: ctx => ctx.parsed.x.toLocaleString('pl') + ' klientow'}}
+      },
+      scales: {
+        x: {beginAtZero: true, grid: {color: 'rgba(201,169,110,0.06)'}, ticks: {callback: v => v.toLocaleString('pl')}},
+        y: {grid: {display: false}}
+      }
+    }
+  });
+}
+
+function buildSegRadarChart() {
+  const ctx = document.getElementById('segRadarChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'radar',
+    data: {
+      labels: ['AOV (norm)', 'Done %', 'Cancel %', 'Female %', 'Clients (norm)'],
+      datasets: CLEORA.segments.map((s, i) => ({
+        label: `Seg ${s.id}: ${s.name}`,
+        data: [
+          (s.aov - 880) / (940 - 880) * 100,
+          s.done_pct,
+          s.cancel_pct,
+          s.female_pct,
+          Math.min(100, (s.clients / 21654) * 100)
+        ],
+        borderColor: COLORS[i],
+        backgroundColor: COLORS[i] + '15',
+        pointBackgroundColor: COLORS[i],
+        borderWidth: 2,
+        pointRadius: 3,
+      }))
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        r: {
+          beginAtZero: true,
+          max: 100,
+          grid: {color: 'rgba(201,169,110,0.08)'},
+          angleLines: {color: 'rgba(201,169,110,0.08)'},
+          pointLabels: {font: {size: 10}},
+          ticks: {display: false}
+        }
+      },
+      plugins: {
+        legend: {position: 'bottom', labels: {padding: 12, usePointStyle: true, pointStyle: 'circle', font: {size: 9}}}
+      }
+    }
+  });
+}
+
+function buildSalonHeatmap() {
+  const ctx = document.getElementById('salonHeatmap').getContext('2d');
+  const salons = Object.keys(CLEORA.salon_overlap);
+  const matrix = [];
+  salons.forEach((from, i) => {
+    salons.forEach((to, j) => {
+      let val = 0;
+      if (i === j) {
+        val = 0;
+      } else {
+        const overlaps = CLEORA.salon_overlap[from] || [];
+        const found = overlaps.find(o => o[0] === to);
+        if (found) val = found[1];
+      }
+      matrix.push({x: j, y: i, v: val});
+    });
+  });
+
+  // Build as grouped bar chart showing top overlaps per salon
+  const datasets = [];
+  salons.forEach((salon, i) => {
+    const overlaps = CLEORA.salon_overlap[salon] || [];
+    overlaps.forEach(([target, count]) => {
+      datasets.push({salon, target, count});
+    });
+  });
+
+  // Deduplicate pairs
+  const seen = new Set();
+  const uniquePairs = [];
+  datasets.forEach(d => {
+    const key = [d.salon, d.target].sort().join('|');
+    if (!seen.has(key)) {
+      seen.add(key);
+      uniquePairs.push(d);
+    }
+  });
+  uniquePairs.sort((a, b) => b.count - a.count);
+
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: uniquePairs.map(p => `${p.salon} ↔ ${p.target}`),
+      datasets: [{
+        label: 'Wspolni klienci',
+        data: uniquePairs.map(p => p.count),
+        backgroundColor: uniquePairs.map((p, i) => {
+          if (p.count > 100) return 'rgba(244,63,94,0.6)';
+          if (p.count > 25) return 'rgba(245,158,11,0.6)';
+          return 'rgba(201,169,110,0.4)';
+        }),
+        borderColor: uniquePairs.map((p, i) => {
+          if (p.count > 100) return '#F43F5E';
+          if (p.count > 25) return '#F59E0B';
+          return GOLD;
+        }),
+        borderWidth: 1,
+        borderRadius: 4,
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {display: false},
+        tooltip: {callbacks: {label: ctx => ctx.parsed.x + ' wspolnych klientow'}}
+      },
+      scales: {
+        x: {beginAtZero: true, grid: {color: 'rgba(201,169,110,0.06)'}},
+        y: {grid: {display: false}, ticks: {font: {size: 10}}}
+      }
+    }
+  });
+}
+
+function buildVipPieChart() {
+  const ctx = document.getElementById('vipPieChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['VIP (LTV > 2,293 PLN)', 'Sleeping VIP (lookalikes)', 'Remaining non-VIP'],
+      datasets: [{
+        data: [
+          CLEORA.vip.vip_count,
+          CLEORA.vip.sleeping_vip_estimate,
+          CLEORA.vip.non_vip_pool - CLEORA.vip.sleeping_vip_estimate
+        ],
+        backgroundColor: [GOLD_A, 'rgba(245,158,11,0.6)', 'rgba(74,97,120,0.4)'],
+        borderColor: 'rgba(5,11,20,0.8)',
+        borderWidth: 2,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {position: 'bottom', labels: {padding: 14, usePointStyle: true, pointStyle: 'circle'}},
+        tooltip: {callbacks: {label: ctx => {
+          const total = CLEORA.vip.vip_count + CLEORA.vip.non_vip_pool;
+          const pct = ((ctx.parsed / total) * 100).toFixed(1);
+          return `${ctx.label}: ${ctx.parsed.toLocaleString('pl')} (${pct}%)`;
+        }}}
+      }
+    }
+  });
+}
+
+function buildVipThresholdChart() {
+  const ctx = document.getElementById('vipThresholdChart').getContext('2d');
+  // Simulated LTV distribution curve
+  const labels = [];
+  const data = [];
+  const bgColors = [];
+  for (let ltv = 200; ltv <= 5000; ltv += 200) {
+    labels.push(ltv);
+    // Approximate log-normal distribution
+    const x = ltv;
+    const mu = Math.log(1100);
+    const sigma = 0.5;
+    const val = (1 / (x * sigma * Math.sqrt(2 * Math.PI))) * Math.exp(-Math.pow(Math.log(x) - mu, 2) / (2 * sigma * sigma));
+    data.push(Math.round(val * 300000));
+    if (ltv >= CLEORA.vip.threshold_pln) {
+      bgColors.push('rgba(244,63,94,0.5)');
+    } else if (ltv >= 1100) {
+      bgColors.push('rgba(245,158,11,0.5)');
+    } else {
+      bgColors.push('rgba(74,97,120,0.4)');
+    }
+  }
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: labels.map(l => l + ' PLN'),
+      datasets: [{
+        label: 'Klienci (est.)',
+        data: data,
+        backgroundColor: bgColors,
+        borderWidth: 0,
+        borderRadius: 2,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {display: false},
+        tooltip: {callbacks: {label: ctx => `~${ctx.parsed.y} klientow`}},
+        annotation: undefined
+      },
+      scales: {
+        y: {beginAtZero: true, grid: {color: 'rgba(201,169,110,0.06)'}, ticks: {display: false}},
+        x: {grid: {display: false}, ticks: {font: {size: 9}, maxRotation: 45}}
+      }
+    }
+  });
+}
+
+function buildCapacityChart() {
+  const ctx = document.getElementById('capacityChart').getContext('2d');
+  const salons = CLEORA.capacity.salons;
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: salons.map(s => s.name),
+      datasets: [
+        {
+          label: 'Aktualne',
+          data: salons.map(s => s.current),
+          backgroundColor: salons.map(s => {
+            if (s.status === 'ok') return 'rgba(16,185,129,0.6)';
+            if (s.status === 'warning') return 'rgba(245,158,11,0.6)';
+            return 'rgba(244,63,94,0.5)';
+          }),
+          borderColor: salons.map(s => {
+            if (s.status === 'ok') return '#10B981';
+            if (s.status === 'warning') return '#F59E0B';
+            return '#F43F5E';
+          }),
+          borderWidth: 1,
+          borderRadius: 4,
+        },
+        {
+          label: 'Target (60%)',
+          data: salons.map(() => 312),
+          type: 'line',
+          borderColor: 'rgba(201,169,110,0.5)',
+          borderDash: [6, 3],
+          borderWidth: 2,
+          pointRadius: 0,
+          fill: false,
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {position: 'top', labels: {padding: 14, usePointStyle: true, pointStyle: 'circle', font: {size: 10}}},
+        tooltip: {callbacks: {label: ctx => {
+          if (ctx.dataset.label === 'Target (60%)') return 'Target: 312 / mies.';
+          return `${ctx.parsed.y} badan / mies. (${salons[ctx.dataIndex].pct}%)`;
+        }}}
+      },
+      scales: {
+        y: {beginAtZero: true, max: 520, grid: {color: 'rgba(201,169,110,0.06)'}, ticks: {callback: v => v}},
+        x: {grid: {display: false}, ticks: {font: {size: 9}, maxRotation: 45}}
+      }
+    }
+  });
+}
+
+// ===== NAV HIGHLIGHT =====
+const navLinks = document.querySelectorAll('.nav a');
+window.addEventListener('scroll', () => {
+  let current = '';
+  document.querySelectorAll('.sec, .kpi-row').forEach(sec => {
+    const rect = sec.getBoundingClientRect();
+    if (rect.top <= 120) current = sec.id;
+  });
+  navLinks.forEach(a => {
+    a.classList.toggle('active', a.getAttribute('href') === '#' + current);
+  });
+});
+
+// Smooth scroll
+navLinks.forEach(a => {
+  a.addEventListener('click', e => {
+    e.preventDefault();
+    const target = document.querySelector(a.getAttribute('href'));
+    if (target) target.scrollIntoView({behavior: 'smooth', block: 'start'});
+  });
+});
+</script>
+</body>
+</html>
