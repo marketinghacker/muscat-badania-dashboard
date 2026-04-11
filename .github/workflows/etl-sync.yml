@@ -2,13 +2,19 @@ name: Muscat ETL Sync (Hourly)
 
 on:
   schedule:
-    - cron: '0 * * * *'  # Every hour
-  workflow_dispatch:       # Manual trigger
+    - cron: '0 6-22 * * *'  # Every hour 6:00-22:00 UTC (business hours)
+  workflow_dispatch:
+    inputs:
+      full_sync:
+        description: 'Include raw tables (customers, events, sales)?'
+        required: false
+        default: 'false'
+        type: boolean
 
 jobs:
   etl:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
 
     steps:
       - name: Checkout repo
@@ -41,13 +47,19 @@ jobs:
             fi
             sleep 2
           done
-          # Verify connectivity
           ping -c 1 -W 5 10.0.216.28 || (cat /tmp/openvpn.log && exit 1)
 
-      - name: Run ETL
+      - name: Run ETL (aggregates only for hourly, full on manual)
         env:
           RAILWAY_DATABASE_URL: ${{ secrets.RAILWAY_DATABASE_URL }}
-        run: python3 -u etl/muscat_etl.py
+        run: |
+          if [ "${{ inputs.full_sync }}" = "true" ]; then
+            echo "Running FULL sync (with raw tables)..."
+            python3 -u etl/muscat_etl.py
+          else
+            echo "Running FAST sync (aggregates only)..."
+            python3 -u etl/muscat_etl.py --skip-raw
+          fi
 
       - name: Disconnect VPN
         if: always()
