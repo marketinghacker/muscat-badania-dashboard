@@ -293,6 +293,69 @@ def extract_product_trends(conn):
     return df
 
 
+def extract_customers_raw(conn):
+    """Extract full anonymized customer base (chunked to avoid replication conflicts)."""
+    chunks = []
+    for ctype in ['NOWY', 'STARY']:
+        query = f"""
+        SELECT unique_id, age, sex, zip, city, customer_type,
+               consent_general, consent_medical, consent_marketing_email,
+               consent_marketing_sms, consent_marketing_personal,
+               orders, orders_amount, orders_frequency, orders_cv,
+               newsletter_subscription_date
+        FROM muscat_customer_report_anon
+        WHERE customer_type = '{ctype}'
+        """
+        chunk = pd.read_sql(query, conn)
+        chunks.append(chunk)
+        print(f"    customers {ctype}: {len(chunk)} rows")
+    return pd.concat(chunks, ignore_index=True)
+
+
+def extract_events_raw(conn):
+    """Extract all real events (chunked by year)."""
+    chunks = []
+    for year in range(2020, 2027):
+        query = f"""
+        SELECT event_id, registration_date, registration_datetime,
+               exam_datetime, source, status_post, source_cancellation,
+               cancellation_datetime, pos, client_id, client_name,
+               prescription_id, remote_examination
+        FROM muscat_events_report
+        WHERE (slot_type IS NULL OR slot_type = '')
+          AND exam_datetime IS NOT NULL
+          AND pos != 'PRA'
+          AND exam_datetime::timestamp >= '{year}-01-01'
+          AND exam_datetime::timestamp < '{year+1}-01-01'
+        """
+        chunk = pd.read_sql(query, conn)
+        chunks.append(chunk)
+        print(f"    events {year}: {len(chunk)} rows")
+    return pd.concat(chunks, ignore_index=True)
+
+
+def extract_sales_raw(conn):
+    """Extract all sales data with product details (chunked by year to avoid replication conflicts)."""
+    chunks = []
+    for year in range(2023, 2027):
+        query = f"""
+        SELECT order_date, order_datetime, order_number, client_unique_id,
+               product_name, order_is_hto, product_price_gross_in_pln,
+               product_qty, is_glasses, sku, product_category, product_offer,
+               product_conv, product_package, product_coat, product_coat_polarize,
+               product_construction, product_power, product_near_point,
+               product_standard, product_index, order_voucher, sale_team,
+               employee_id, sale_person, coupon_code, prescription_id
+        FROM muscat_sale_report
+        WHERE order_date >= '{year}-01-01' AND order_date < '{year+1}-01-01'
+          AND sale_team NOT IN ('eCZ', 'PRA')
+        """
+        chunk = pd.read_sql(query, conn)
+        chunks.append(chunk)
+        print(f"    sales {year}: {len(chunk)} rows")
+    return pd.concat(chunks, ignore_index=True)
+
+
 def extract_geo_coverage(conn):
     """Extract customer ZIP prefix distribution per city."""
     query = """
@@ -324,6 +387,9 @@ DROP TABLE IF EXISTS product_trends CASCADE;
 DROP TABLE IF EXISTS geo_coverage CASCADE;
 DROP TABLE IF EXISTS city_mapping CASCADE;
 DROP TABLE IF EXISTS ad_spend_monthly CASCADE;
+DROP TABLE IF EXISTS customers_raw CASCADE;
+DROP TABLE IF EXISTS events_raw CASCADE;
+DROP TABLE IF EXISTS sales_raw CASCADE;
 DROP TABLE IF EXISTS etl_log CASCADE;
 
 CREATE TABLE events_monthly (
@@ -386,6 +452,31 @@ CREATE TABLE ad_spend_monthly (
     meta_clicks INT, google_clicks INT, google_conversions NUMERIC
 );
 
+CREATE TABLE customers_raw (
+    unique_id TEXT, age NUMERIC, sex TEXT, zip TEXT, city TEXT, customer_type TEXT,
+    consent_general BOOLEAN, consent_medical BOOLEAN, consent_marketing_email BOOLEAN,
+    consent_marketing_sms BOOLEAN, consent_marketing_personal BOOLEAN,
+    orders TEXT, orders_amount NUMERIC, orders_frequency NUMERIC, orders_cv NUMERIC,
+    newsletter_subscription_date TIMESTAMP
+);
+
+CREATE TABLE events_raw (
+    event_id BIGINT, registration_date TEXT, registration_datetime TEXT,
+    exam_datetime TEXT, source TEXT, status_post TEXT, source_cancellation TEXT,
+    cancellation_datetime TEXT, pos TEXT, client_id TEXT, client_name TEXT,
+    prescription_id BIGINT, remote_examination BOOLEAN
+);
+
+CREATE TABLE sales_raw (
+    order_date DATE, order_datetime TIMESTAMP, order_number TEXT, client_unique_id TEXT,
+    product_name TEXT, order_is_hto BOOLEAN, product_price_gross_in_pln NUMERIC,
+    product_qty NUMERIC, is_glasses INT, sku TEXT, product_category TEXT, product_offer TEXT,
+    product_conv TEXT, product_package TEXT, product_coat TEXT, product_coat_polarize TEXT,
+    product_construction TEXT, product_power TEXT, product_near_point TEXT,
+    product_standard TEXT, product_index TEXT, order_voucher TEXT, sale_team TEXT,
+    employee_id BIGINT, sale_person TEXT, coupon_code TEXT, prescription_id TEXT
+);
+
 CREATE TABLE etl_log (
     run_at TIMESTAMP DEFAULT now(),
     table_name TEXT, row_count INT, min_date TEXT, max_date TEXT
@@ -399,21 +490,32 @@ def load_dataframe(railway_conn, table_name, df, date_col=None):
         print(f"  ⚠ {table_name}: empty DataFrame, skipping")
         return
 
-    # Replace NaN with None for SQL
+    # Replace NaN/NaT with None for SQL
+    for col in df.columns:
+        if df[col].dtype == 'datetime64[ns]' or str(df[col].dtype).startswith('datetime'):
+            df[col] = df[col].astype(object).where(df[col].notna(), None)
     df = df.where(pd.notnull(df), None)
 
     cols = list(df.columns)
-    placeholders = ",".join(["%s"] * len(cols))
     col_names = ",".join(cols)
 
     cur = railway_conn.cursor()
     values = [tuple(row) for row in df.values]
-    execute_values(
-        cur,
-        f"INSERT INTO {table_name} ({col_names}) VALUES %s",
-        values,
-        page_size=1000,
-    )
+
+    # Chunk large inserts to avoid timeouts
+    chunk_size = 5000
+    for i in range(0, len(values), chunk_size):
+        batch = values[i:i+chunk_size]
+        execute_values(
+            cur,
+            f"INSERT INTO {table_name} ({col_names}) VALUES %s",
+            batch,
+            page_size=500,
+        )
+        railway_conn.commit()
+        if len(values) > chunk_size:
+            pct = min(100, round(100 * (i + len(batch)) / len(values)))
+            print(f"    {table_name}: {i+len(batch)}/{len(values)} ({pct}%)", flush=True)
 
     # Log
     min_d = str(df[date_col].min()) if date_col and date_col in df.columns else ""
@@ -445,6 +547,7 @@ def load_city_mapping(railway_conn):
 def main():
     parser = argparse.ArgumentParser(description="Muscat ETL: Odoo → Railway PostgreSQL")
     parser.add_argument("--dry-run", action="store_true", help="Extract only, print stats")
+    parser.add_argument("--skip-raw", action="store_true", help="Skip raw tables (events_raw, sales_raw) for faster runs")
     parser.add_argument("--railway-url", type=str, default=os.environ.get("RAILWAY_DATABASE_URL"),
                         help="Railway PostgreSQL connection string")
     args = parser.parse_args()
@@ -493,8 +596,25 @@ def main():
     geo = extract_geo_coverage(odoo_conn)
     print(f"  geo_coverage: {len(geo)} rows")
 
+    if not args.skip_raw:
+        print("  extracting raw tables (full data)...")
+        customers_raw = extract_customers_raw(odoo_conn)
+        print(f"  customers_raw: {len(customers_raw)} rows")
+
+        events_raw = extract_events_raw(odoo_conn)
+        print(f"  events_raw: {len(events_raw)} rows")
+
+        sales_raw = extract_sales_raw(odoo_conn)
+        print(f"  sales_raw: {len(sales_raw)} rows")
+    else:
+        print("  ⏭️  Skipping raw tables (--skip-raw)")
+        customers_raw = pd.DataFrame()
+        events_raw = pd.DataFrame()
+        sales_raw = pd.DataFrame()
+
     odoo_conn.close()
-    print(f"\n  Total: {len(events)+len(sales)+len(traffic)+len(customers)+len(demo_temporal)+len(sales_demo)+len(products)+len(geo)} rows extracted")
+    total = len(events)+len(sales)+len(traffic)+len(customers)+len(demo_temporal)+len(sales_demo)+len(products)+len(geo)+len(customers_raw)+len(events_raw)+len(sales_raw)
+    print(f"\n  Total: {total} rows extracted")
 
     if args.dry_run:
         print("\n🔍 DRY RUN — not writing to Railway")
@@ -533,6 +653,12 @@ def main():
     load_dataframe(railway_conn, "sales_demographics", sales_demo)
     load_dataframe(railway_conn, "product_trends", products)
     load_dataframe(railway_conn, "geo_coverage", geo)
+    if not args.skip_raw:
+        load_dataframe(railway_conn, "customers_raw", customers_raw)
+        load_dataframe(railway_conn, "events_raw", events_raw, "exam_datetime")
+        load_dataframe(railway_conn, "sales_raw", sales_raw, "order_date")
+    else:
+        print("  ⏭️  Skipped raw table loads")
 
     railway_conn.close()
 
