@@ -1,0 +1,54 @@
+name: Muscat ETL Sync (Hourly)
+
+on:
+  schedule:
+    - cron: '0 * * * *'  # Every hour
+  workflow_dispatch:       # Manual trigger
+
+jobs:
+  etl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r etl/requirements.txt
+
+      - name: Install OpenVPN
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y openvpn
+
+      - name: Write OpenVPN config
+        run: echo "${{ secrets.OVPN_CONFIG }}" | base64 -d > /tmp/muscat.ovpn
+
+      - name: Connect to VPN
+        run: |
+          sudo openvpn --config /tmp/muscat.ovpn --daemon --log /tmp/openvpn.log
+          echo "Waiting for VPN connection..."
+          for i in $(seq 1 30); do
+            if ip addr show tun0 2>/dev/null | grep -q "inet "; then
+              echo "VPN connected!"
+              break
+            fi
+            sleep 2
+          done
+          # Verify connectivity
+          ping -c 1 -W 5 10.0.216.28 || (cat /tmp/openvpn.log && exit 1)
+
+      - name: Run ETL
+        env:
+          RAILWAY_DATABASE_URL: ${{ secrets.RAILWAY_DATABASE_URL }}
+        run: python3 -u etl/muscat_etl.py
+
+      - name: Disconnect VPN
+        if: always()
+        run: sudo killall openvpn 2>/dev/null || true
