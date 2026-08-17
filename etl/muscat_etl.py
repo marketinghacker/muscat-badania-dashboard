@@ -22,13 +22,7 @@ import psycopg2
 from psycopg2.extras import execute_values
 
 # ─── Odoo (source) connection ───────────────────────────────────────────────
-ODOO_CONFIG = {
-    "host": "10.0.216.28",
-    "port": 5432,
-    "dbname": "odoo",
-    "user": "marcin",
-    "password": "cx4iqGA1EHw0",
-}
+ODOO_URL_ENV = "MUSCAT_ODOO_POSTGRES_URL"
 
 # ─── POS → City mapping ────────────────────────────────────────────────────
 CITY_MAP = {
@@ -558,9 +552,14 @@ def main():
     print(f"{'='*60}\n")
 
     # ── Extract from Odoo ──
-    print("📡 Connecting to Odoo (10.0.216.28)...")
+    odoo_url = os.environ.get(ODOO_URL_ENV)
+    if not odoo_url:
+        print(f"✗ Missing protected credential alias: {ODOO_URL_ENV}")
+        sys.exit(1)
+
+    print("📡 Connecting to Odoo reporting database via Pritunl...")
     try:
-        odoo_conn = psycopg2.connect(**ODOO_CONFIG)
+        odoo_conn = psycopg2.connect(odoo_url)
         print("  ✓ Connected to Odoo PostgreSQL 17.9\n")
     except Exception as e:
         print(f"  ✗ Failed: {e}")
