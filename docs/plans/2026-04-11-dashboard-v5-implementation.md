@@ -22,9 +22,14 @@
 
 ```python
 # muscat_v5_data.py — loads all data from Railway PostgreSQL
-import psycopg2, pandas as pd, numpy as np, json
+import json
+import os
 
-RAILWAY_URL = "postgresql://postgres:bEKDQPLAdGSOmgbPdPOXFXWjdsLRRilq@mainline.proxy.rlwy.net:12657/railway"
+import numpy as np
+import pandas as pd
+import psycopg2
+
+RAILWAY_URL = os.environ["MUSCAT_CITY_DASHBOARD_DATABASE_URL"]
 
 CITY_MAP = {
     "ARK": {"city":"Warszawa","salon":"Arkadia","type":"CH","m2":82,"m2_sala":57},
